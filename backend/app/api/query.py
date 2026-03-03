@@ -1,6 +1,6 @@
 # from fastapi import APIRouter
 # from pydantic import BaseModel
-
+#
 # from app.embeddings.embedder import Embedder
 # from app.vector_store import chroma_store
 # from app.vector_store.index_instance import faiss_index
@@ -73,16 +73,22 @@ async def query_documents(request: QueryRequest):
     # 1️⃣ Embed query
     query_embedding = embedder.embed_texts([query])
 
-    # 2️⃣ FAISS similarity search (returns chunk_ids directly)
-    chunk_ids = faiss_index.search(query_embedding, top_k)
+    # 2️⃣ FAISS similarity search (returns chunk_ids + cosine similarities)
+    chunk_ids, similarities = faiss_index.search_with_scores(query_embedding, top_k)
     print(f"DEBUG: FAISS returned {len(chunk_ids)} chunk_ids: {chunk_ids}")
 
     if not chunk_ids:
-        return {"results": [], "debug": "No chunk_ids from FAISS search"}
+        return {
+            "query": query,
+            "answer": "I don't have enough information in the provided context to answer that.",
+            "sources": [],
+            "confidence": 0.0,
+        }
 
     # 3️⃣ Fetch documents from Chroma
     chroma_results = chroma_store.collection.get(
-        ids=chunk_ids
+        ids=chunk_ids,
+        include=["documents", "metadatas"],
     )
 
     print(f"DEBUG: Chroma returned keys: {list(chroma_results.keys())}")
@@ -91,8 +97,22 @@ async def query_documents(request: QueryRequest):
     # Chroma may return 'metadatas' (plural) depending on version; fallback to 'metadata' if present
     metadatas = chroma_results.get("metadatas", chroma_results.get("metadata", []))
 
-    # Build  Context
+    # Build Context
+    documents = [doc for doc in documents if doc and doc.strip()]
     context = "\n\n".join(documents)
+    if not context.strip():
+        return {
+            "query": query,
+            "answer": "I don't have enough information in the provided context to answer that.",
+            "sources": metadatas,
+            "confidence": 0.0,
+        }
+
+    # Normalize distances into a 0-1 confidence score (lower distance => higher confidence)
+    confidence = 0.0
+    if similarities:
+        avg_similarity = sum(similarities) / len(similarities)
+        confidence = round(max(0.0, min(1.0, avg_similarity)), 2)
 
     # Ask Groq
     answer = llm.generate_answer(
@@ -103,5 +123,6 @@ async def query_documents(request: QueryRequest):
     return {
         "query": query,
         "answer": answer,
-        "sources": metadatas 
+        "sources": metadatas,
+        "confidence": confidence,
     }

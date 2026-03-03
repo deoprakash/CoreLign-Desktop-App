@@ -37,7 +37,7 @@ class FaissIndex:
         self.index_file = self.storage_dir / "faiss.index"
         self.meta_file = self.storage_dir / "chunk_ids.json"
 
-        self.index = faiss.IndexFlatL2(dim)
+        self.index = faiss.IndexFlatIP(dim)
         self.chunk_ids: List[str] = []
 
         self.load_from_disk()
@@ -46,27 +46,41 @@ class FaissIndex:
     def has_vectors(self) -> bool:
         return self.index.ntotal > 0 and len(self.chunk_ids) >= self.index.ntotal
 
-    def add_vectors(self, vectors: np.ndarray, chunk_ids: Sequence[Union[str, int]]):
-        assert len(vectors) == len(chunk_ids), "Vectors and chunk_ids length mismatch"
-
+    def _normalize(self, vectors: np.ndarray) -> np.ndarray:
         if vectors.dtype != np.float32:
             vectors = vectors.astype(np.float32)
 
+        faiss.normalize_L2(vectors)
+        return vectors
+
+    def add_vectors(self, vectors: np.ndarray, chunk_ids: Sequence[Union[str, int]]):
+        assert len(vectors) == len(chunk_ids), "Vectors and chunk_ids length mismatch"
+
+        vectors = self._normalize(vectors)
         self.index.add(vectors)
         self.chunk_ids.extend([str(cid) for cid in chunk_ids])
         print(f"FAISS vectors stored: {self.index.ntotal}")
 
     def search(self, vectors: np.ndarray, top_k: int) -> List[str]:
+        chunk_ids, _ = self.search_with_scores(vectors, top_k)
+        return chunk_ids
+
+    def search_with_scores(self, vectors: np.ndarray, top_k: int) -> tuple[List[str], List[float]]:
         if self.index.ntotal == 0:
-            return []
+            return [], []
 
-        if vectors.dtype != np.float32:
-            vectors = vectors.astype(np.float32)
+        vectors = self._normalize(vectors)
 
-        _, indices = self.index.search(vectors, top_k)
-        return [
-            self.chunk_ids[i] for i in indices[0] if 0 <= i < len(self.chunk_ids)
-        ]
+        scores, indices = self.index.search(vectors, top_k)
+        chunk_ids: List[str] = []
+        similarities: List[float] = []
+
+        for idx, score in zip(indices[0], scores[0]):
+            if 0 <= idx < len(self.chunk_ids):
+                chunk_ids.append(self.chunk_ids[idx])
+                similarities.append(float(score))
+
+        return chunk_ids, similarities
 
     def save_to_disk(self) -> None:
         faiss.write_index(self.index, str(self.index_file))
@@ -76,6 +90,10 @@ class FaissIndex:
     def load_from_disk(self) -> None:
         if self.index_file.exists():
             self.index = faiss.read_index(str(self.index_file))
+            if getattr(self.index, "metric_type", None) != faiss.METRIC_INNER_PRODUCT:
+                print("DEBUG: Rebuilding FAISS index for cosine similarity; re-upload documents.")
+                self.index = faiss.IndexFlatIP(self.dim)
+                self.chunk_ids = []
 
         if self.meta_file.exists():
             with self.meta_file.open("r", encoding="utf-8") as fh:

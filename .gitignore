@@ -1,50 +1,78 @@
-# Byte-compiled / cache files
+# Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
-*.so
-*.egg
-*.egg-info/
-dist/
-build/
+*$py.class
 
 # Virtual environment
 .venv/
 venv/
-ENV/
+env/
 
-# Jupyter Notebook checkpoints
-.ipynb_checkpoints/
-
-# VS Code settings
+# VS Code workspace
 .vscode/
-
-# OS files
-.DS_Store
-Thumbs.db
-
-
-# Data and uploads
-data/raw_docs
-data/
-data/*
-data/**/
-
-# Logs
-*.log
 
 # Environment variables
 .env
-.env.*
 
-# Test and coverage outputs
+# Data and generated stores
+data/
+data/raw_docs/
+data/vector_store/
+
+# FAISS/other index files
+*.index
+*.bin
+
+# Chroma/DB files
+chroma-*/
+*.sqlite
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+
+# System files
+.DS_Store
+Thumbs.db
+
+# Test, CI, caches
+.pytest_cache/
+.mypy_cache/
+.cache/
 .coverage
-htmlcov/
-.tox/
+coverage.xml
 
-# Misc
+# Logs
+logs/
+*.log
+
+# Editor/temp
 *.swp
-*.bak
+*.swo
 *.tmp
 
-# Ignore uploads and user files
-uploads/
+# Jupyter
+.ipynb_checkpoints/
+
+# Ignore backend-specific envs and data (moved project)
+backend/.venv/
+backend/venv/
+backend/.env
+backend/data/
+
+# Frontend (Vite)
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+frontend/.env
+frontend/.env.local
+frontend/.env.*.local
+
+# Backend caches/build
+backend/__pycache__/
+backend/.pytest_cache/
+
+# Local environment overrides
+.env.local
+.env.*.local

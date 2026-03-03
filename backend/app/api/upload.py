@@ -108,7 +108,7 @@
 #     }
 
 
-from fastapi import APIRouter, UploadFile, File
+from fastapi import APIRouter, UploadFile, File, HTTPException, status
 import uuid
 import os
 
@@ -117,6 +117,7 @@ from app.ingestion.docx_loader import (
     detect_headings,
     assign_contextual_levels,
 )
+from app.ingestion.pdf_loader import extract_text_from_pdf
 
 from app.ingestion.chunking import (
     create_semantic_chunks,
@@ -149,9 +150,20 @@ async def upload_document(file: UploadFile = File(...)):
         f.write(await file.read())
 
     # ---------------------------
-    # 2. DOCX ingestion pipeline
+    # 2. Ingestion pipeline (DOCX or PDF)
     # ---------------------------
-    paragraphs = extract_text_from_docx(file_path)
+    filename_lower = file.filename.lower()
+
+    if filename_lower.endswith(".pdf"):
+        paragraphs = extract_text_from_pdf(file_path)
+    elif filename_lower.endswith(".docx") or filename_lower.endswith(".doc"):
+        paragraphs = extract_text_from_docx(file_path)
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Unsupported file type. Only PDF and DOCX are supported.",
+        )
+
     paragraphs = detect_headings(paragraphs)
     paragraphs = assign_contextual_levels(paragraphs)
 

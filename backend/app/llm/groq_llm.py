@@ -14,10 +14,16 @@ class GroqLLM:
         )
     
     def generate_answer(self, context: str, question: str) -> str:
-        prompt = f"""
-You are an intelligent document assistant.
+        if not context or not context.strip():
+            return "I don't have enough information in the provided context to answer that."
 
-Context: 
+        prompt = f"""
+You are an intelligent document assistant. Use only the provided context.
+
+If the answer is not explicitly in the context, reply exactly with:
+"I don't have enough information in the provided context to answer that."
+
+Context:
 {context}
 
 Question:

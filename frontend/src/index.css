@@ -1,0 +1,49 @@
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:wght@300;400;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  margin: 0;
+  font-family: "Space Grotesk", system-ui, sans-serif;
+  color: #0f172a;
+  background: radial-gradient(circle at 15% 20%, rgba(217, 237, 232, 0.9), transparent 60%),
+    radial-gradient(circle at 85% 0%, rgba(254, 230, 214, 0.8), transparent 55%),
+    linear-gradient(160deg, #f7f4ef 0%, #eef5f5 55%, #f5f8ff 100%);
+  min-height: 100vh;
+}
+
+@layer components {
+  .glass {
+    @apply bg-white/70 backdrop-blur border border-white/60 shadow-xl shadow-slate-200/60;
+  }
+
+  .pill {
+    @apply inline-flex items-center gap-2 rounded-full px-4 py-1 text-sm font-medium;
+  }
+
+  .btn-primary {
+    @apply inline-flex items-center gap-2 rounded-full bg-teal-700 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-teal-600/30 transition hover:-translate-y-0.5 hover:bg-teal-600;
+  }
+
+  .btn-ghost {
+    @apply inline-flex items-center gap-2 rounded-full border border-slate-300 px-5 py-3 text-sm font-semibold text-slate-700 transition hover:-translate-y-0.5 hover:border-slate-400 hover:text-slate-900;
+  }
+}
+
+@layer utilities {
+  .hero-grid {
+    background-image: linear-gradient(transparent 75%, rgba(15, 23, 42, 0.06) 75%),
+      linear-gradient(90deg, transparent 75%, rgba(15, 23, 42, 0.06) 75%);
+    background-size: 28px 28px;
+  }
+}
