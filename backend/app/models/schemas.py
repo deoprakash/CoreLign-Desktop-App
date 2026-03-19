@@ -9,7 +9,7 @@ class UploadResponse(BaseModel):
 class QueryRequest(BaseModel):
     query_text: str
     document_id: Optional[str] = None
-    top_k: int = 5
+    top_k: int = 7
 
 class QueryResponse(BaseModel):
     answer: str

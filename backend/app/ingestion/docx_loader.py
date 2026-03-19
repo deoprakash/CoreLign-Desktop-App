@@ -49,8 +49,9 @@ def compute_average_font_size(paragraphs: list) -> float:
 def detect_headings(paragraphs: list) -> list:
     avg_font = compute_average_font_size(paragraphs)
 
-    for p in paragraphs:
+    for idx, p in enumerate(paragraphs):
         text = p["text"].strip()
+        prev_text = paragraphs[idx - 1]["text"].strip() if idx > 0 else ""
 
         # ---- Defaults ----
         p["is_heading"] = False
@@ -60,6 +61,13 @@ def detect_headings(paragraphs: list) -> list:
         # ---- NEW: list item detection ----
         style = p.get("style", "").lower()
         p["is_list_item"] = "list" in style
+
+        # Numeric/bulleted lines should stay as body text when they are likely list items.
+        likely_enumerated_item = bool(re.match(r"^\d+[\.)]\s*", text) or re.match(r"^[•\-]\s+", text))
+        prev_is_enumerated_item = bool(re.match(r"^\d+[\.)]\s*", prev_text) or re.match(r"^[•\-]\s+", prev_text))
+        follows_list_intro = prev_text.endswith(":")
+        if p["is_list_item"] or (likely_enumerated_item and (follows_list_intro or prev_is_enumerated_item)):
+            continue
 
         # ---- STYLE-BASED HEADINGS (MOST RELIABLE) ----
         if style == "heading 1":

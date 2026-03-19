@@ -30,7 +30,7 @@ const stats = [
 
 function App() {
   const [view, setView] = useState('landing')
-  const [selectedFile, setSelectedFile] = useState(null)
+  const [selectedFiles, setSelectedFiles] = useState([])
   const [uploadState, setUploadState] = useState({ status: 'idle', message: '', progress: 0 })
   const [isDragging, setIsDragging] = useState(false)
   const [queryText, setQueryText] = useState('')
@@ -60,9 +60,9 @@ function App() {
   const fileInputRef = useRef(null)
   const uploadRequestRef = useRef(null)
 
-  const uploadFile = (file) => new Promise((resolve, reject) => {
+  const uploadFiles = (files) => new Promise((resolve, reject) => {
     const formData = new FormData()
-    formData.append('file', file)
+    files.forEach((file) => formData.append('files', file))
 
     const xhr = new XMLHttpRequest()
     xhr.open('POST', `${apiBase}/upload/upload`)
@@ -96,18 +96,20 @@ function App() {
 
   const handleUpload = async (event) => {
     event.preventDefault()
-    if (!selectedFile) {
-      setUploadState({ status: 'error', message: 'Select a PDF or DOCX file to upload.', progress: 0 })
+    if (!selectedFiles.length) {
+      setUploadState({ status: 'error', message: 'Select one or more PDF/DOCX files to upload.', progress: 0 })
       return
     }
 
     setUploadState({ status: 'loading', message: 'Uploading and indexing...', progress: 0 })
 
     try {
-      const data = await uploadFile(selectedFile)
+      const data = await uploadFiles(selectedFiles)
+      const filesIndexed = data.files_indexed ?? 0
+      const totalChunks = data.total_chunks_embedded ?? 0
       setUploadState({
         status: 'success',
-        message: `Uploaded. ${data.chunks_embedded ?? 0} chunks indexed.`,
+        message: `Uploaded ${filesIndexed}/${selectedFiles.length} files. ${totalChunks} chunks indexed.`,
         progress: 100,
       })
     } catch (error) {
@@ -127,9 +129,9 @@ function App() {
   const handleDrop = (event) => {
     event.preventDefault()
     setIsDragging(false)
-    const file = event.dataTransfer.files?.[0]
-    if (file) {
-      setSelectedFile(file)
+    const droppedFiles = Array.from(event.dataTransfer.files || [])
+    if (droppedFiles.length) {
+      setSelectedFiles(droppedFiles)
     }
   }
 
@@ -146,7 +148,7 @@ function App() {
       const response = await fetch(`${apiBase}/query`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query: queryText.trim(), top_k: 5 }),
+        body: JSON.stringify({ query: queryText.trim(), top_k: 7 }),
       })
 
       const data = await response.json()
@@ -202,7 +204,7 @@ function App() {
             <div className="glass rounded-3xl p-8">
               <h1 className="font-display text-3xl font-semibold text-slate-900">Upload & Index</h1>
               <p className="mt-2 text-sm text-slate-600">
-                Add a DOCX or PDF and we will chunk, embed, and index it automatically.
+                Add one or more DOCX/PDF files and we will chunk, embed, and index them automatically.
               </p>
               <form className="mt-6 space-y-4" onSubmit={handleUpload}>
                 <div
@@ -228,13 +230,14 @@ function App() {
                   <input
                     accept=".pdf,.docx,.doc"
                     className="hidden"
-                    onChange={(event) => setSelectedFile(event.target.files?.[0] || null)}
+                    multiple
+                    onChange={(event) => setSelectedFiles(Array.from(event.target.files || []))}
                     ref={fileInputRef}
                     type="file"
                   />
                   <div className="text-center">
                     <p className="text-sm font-medium text-slate-700">
-                      {isDragging ? 'Drop the file here' : 'Drag & drop or browse'}
+                      {isDragging ? 'Drop files here' : 'Drag & drop files or browse'}
                     </p>
                     <p className="text-xs text-slate-500">Supports PDF & DOCX</p>
                     <button
@@ -242,21 +245,24 @@ function App() {
                       type="button"
                       onClick={() => fileInputRef.current?.click()}
                     >
-                      Upload file
+                      Select files
                     </button>
                   </div>
                 </div>
                 <div className="flex flex-wrap items-center gap-3">
                   <button className="btn-primary" type="submit" disabled={uploadState.status === 'loading'}>
-                    {uploadState.status === 'loading' ? 'Uploading...' : 'Upload document'}
+                    {uploadState.status === 'loading' ? 'Uploading...' : 'Upload documents'}
                   </button>
                   {uploadState.status === 'loading' ? (
                     <button className="btn-ghost" type="button" onClick={handleCancelUpload}>
                       Cancel upload
                     </button>
                   ) : null}
-                  {selectedFile ? (
-                    <span className="text-xs text-slate-500">Selected: {selectedFile.name}</span>
+                  {selectedFiles.length ? (
+                    <span className="text-xs text-slate-500">
+                      Selected ({selectedFiles.length}): {selectedFiles.slice(0, 3).map((file) => file.name).join(', ')}
+                      {selectedFiles.length > 3 ? ', ...' : ''}
+                    </span>
                   ) : null}
                 </div>
                 {uploadState.status === 'loading' ? (

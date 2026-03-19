@@ -1,38 +1,4 @@
-# from fastapi import APIRouter
-# from pydantic import BaseModel
-#
-# from app.embeddings.embedder import Embedder
-# from app.vector_store import chroma_store
-# from app.vector_store.index_instance import faiss_index
-
-
-# router = APIRouter()
-# embedder = Embedder()
-
-# class QueryRequest(BaseModel):
-#     query: str
-#     top_k: int = 5
-
-# @router.post("/query")
-# def query_document(request: QueryRequest):
-#     if faiss_index is None:
-#         return {"error": "Vector index not initialised!"}
-
-#     # Embed query
-#     query_embedding = embedder.embed_texts([request.query])
-
-#     # search FAISS and get chunk IDs directly
-#     chunk_ids = faiss_index.search(
-#         query_embedding, top_k=request.top_k
-#     )
-
-#     # fetch chunks from chroma
-#     results = chroma_store.get_chunks_by_ids(chunk_ids)
-
-#     return {
-#         "query": request.query,
-#         "results": results 
-#     }
+import re
 
 from fastapi import APIRouter
 from pydantic import BaseModel
@@ -47,9 +13,17 @@ embedder = Embedder()
 llm = GroqLLM()
 
 
+def _chunk_sort_key(chunk_id: str):
+    # chunk_id format: <uuid>_<index>
+    match = re.search(r"_(\d+)$", chunk_id or "")
+    if not match:
+        return (1, chunk_id or "")
+    return (0, int(match.group(1)))
+
+
 class QueryRequest(BaseModel):
     query: str
-    top_k: int = 5
+    top_k: int = 7
 
 
 @router.post("/query")
@@ -93,13 +67,32 @@ async def query_documents(request: QueryRequest):
 
     print(f"DEBUG: Chroma returned keys: {list(chroma_results.keys())}")
 
+    ids = chroma_results.get("ids", [])
     documents = chroma_results.get("documents", [])
     # Chroma may return 'metadatas' (plural) depending on version; fallback to 'metadata' if present
     metadatas = chroma_results.get("metadatas", chroma_results.get("metadata", []))
 
     # Build Context
-    documents = [doc for doc in documents if doc and doc.strip()]
-    context = "\n\n".join(documents)
+    # documents = [doc for doc in documents if doc and doc.strip()]
+    # context = "\n\n".join(documents)
+
+    rows = []
+    for idx, doc in enumerate(documents):
+        if not doc or not doc.strip():
+            continue
+
+        row_id = ids[idx] if idx < len(ids) else ""
+        row_meta = metadatas[idx] if idx < len(metadatas) else {}
+        rows.append((row_id, doc.strip(), row_meta))
+
+    rows.sort(key=lambda r: _chunk_sort_key(r[0]))
+
+    context = "The following information is extracted from a document:\n\n"
+
+    for i, (_, doc, meta) in enumerate(rows):
+        section_label = meta.get("section", f"Section {i+1}") if isinstance(meta, dict) else f"Section {i+1}"
+        context += f"{section_label}:\n{doc}\n\n"
+
     if not context.strip():
         return {
             "query": query,

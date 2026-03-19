@@ -17,11 +17,45 @@ class GroqLLM:
         if not context or not context.strip():
             return "I don't have enough information in the provided context to answer that."
 
-        prompt = f"""
-You are an intelligent document assistant. Use only the provided context.
+#         prompt = f"""
+# You are an intelligent document assistant. Use only the provided context.
 
-If the answer is not explicitly in the context, reply exactly with:
-"I don't have enough information in the provided context to answer that."
+# If the answer is not explicitly in the context, reply exactly with:
+# "I don't have enough information in the provided context to answer that."
+
+# Context:
+# {context}
+
+# Question:
+# {question}
+
+# Answer concisely and factually based only on the context.
+# """
+
+        prompt = f"""
+
+You are an intelligent document assistant. Use ONLY the provided context.
+
+STRICT RULES:
+
+* Do NOT use prior knowledge.
+* Do NOT guess or assume.
+* If the answer is not explicitly in the context, reply EXACTLY:
+  "I don't have enough information in the provided context to answer that."
+
+YES/NO RULES:
+
+* For yes/no questions, answer directly with "Yes" or "No" first.
+* If context explicitly states a different value than the one asked in the question,
+    answer "No" and provide the correct value from context.
+* Treat statements like "X was considered but rejected" as explicit evidence that X is not the final choice.
+
+ANSWERING INSTRUCTIONS:
+
+* Extract ALL relevant information from the context.
+* If the answer contains multiple items, list ALL of them clearly.
+* Do NOT give partial answers.
+* Keep the answer COMPLETE.
 
 Context:
 {context}
@@ -29,8 +63,10 @@ Context:
 Question:
 {question}
 
-Answer concisely and factually based only on the context.
+Answer:
+
 """
+
         msg = HumanMessage(content=prompt)
 
         # langchain_groq ChatGroq is a LangChain Runnable; call via invoke()
