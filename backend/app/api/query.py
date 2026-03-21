@@ -7,6 +7,8 @@ from app.embeddings.embedder import Embedder
 from app.vector_store.index_instance import faiss_index
 from app.vector_store import chroma_store
 from app.llm.groq_llm import GroqLLM
+from app.utils.metrics import metrics
+import time
 
 router = APIRouter()
 embedder = Embedder()
@@ -44,10 +46,14 @@ async def query_documents(request: QueryRequest):
     print(f"DEBUG: Chroma has {chroma_store.collection.count()} chunks")
     print(f"DEBUG: First 5 chunk_ids in FAISS: {faiss_index.chunk_ids[:5]}")
 
+    # Start overall timer
+    t_start = time.perf_counter()
+
     # 1️⃣ Embed query
     query_embedding = embedder.embed_texts([query])
 
     # 2️⃣ FAISS similarity search (returns chunk_ids + cosine similarities)
+    t_retr_start = time.perf_counter()
     chunk_ids, similarities = faiss_index.search_with_scores(query_embedding, top_k)
     print(f"DEBUG: FAISS returned {len(chunk_ids)} chunk_ids: {chunk_ids}")
 
@@ -64,6 +70,10 @@ async def query_documents(request: QueryRequest):
         ids=chunk_ids,
         include=["documents", "metadatas"],
     )
+
+    t_retr_end = time.perf_counter()
+    retrieval_time = t_retr_end - t_retr_start
+    # retrieval_time covers FAISS search + Chroma fetch
 
     print(f"DEBUG: Chroma returned keys: {list(chroma_results.keys())}")
 
@@ -108,11 +118,28 @@ async def query_documents(request: QueryRequest):
         confidence = round(max(0.0, min(1.0, avg_similarity)), 2)
 
     # Ask Groq
+    t_gen_start = time.perf_counter()
     answer = llm.generate_answer(
         context=context,
         question=query
     )
+    t_gen_end = time.perf_counter()
+    generation_time = t_gen_end - t_gen_start
 
+    # Total response time
+    response_time = time.perf_counter() - t_start
+
+    # Record metrics (non-blocking minimal overhead)
+    try:
+        metrics.record(
+            query=query,
+            top_k=top_k,
+            response_time=response_time,
+            retrieval_time=retrieval_time,
+            generation_time=generation_time,
+        )
+    except Exception as e:
+        print(f"DEBUG: Failed to write metrics: {e}")
     return {
         "query": query,
         "answer": answer,

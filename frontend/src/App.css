@@ -1,1 +1,17 @@
 /* Tailwind handles styling; this file is intentionally minimal. */
+
+/* Page transition animations used for simple mount transitions */
+.page-transition {
+	opacity: 0;
+	transform: translateY(8px) scale(0.998);
+	transition: opacity 360ms cubic-bezier(.2,.9,.3,1), transform 360ms cubic-bezier(.2,.9,.3,1);
+}
+.page-transition.enter {
+	opacity: 1;
+	transform: translateY(0) scale(1);
+}
+
+/* Slight stagger helper if needed */
+.page-transition > * {
+	will-change: transform, opacity;
+}

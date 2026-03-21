@@ -72,41 +72,70 @@ def create_semantic_chunks(
     chunk_overlap=120,
     min_section_chars=600,
 ):
-    chunks = []
-    current_chunk = None
-    chunk_index = 0
+    # Quick exit for empty input — return a single no-content root chunk so
+    # upstream code can report "uploaded_no_embeddings" instead of failing.
+    if not paragraphs:
+        return [
+            {
+                "document_id": document_id,
+                "chunk_id": f"{document_id}_1",
+                "section": "Document",
+                "section_level": 0,
+                "content": [],
+                "source_file": source_file,
+            }
+        ]
 
-    for p in paragraphs:
-        if p.get("is_heading"):
-            # START new chunk ONLY if section actually changes
-            if (
-                current_chunk
-                and p["text"] == current_chunk["section"]
-                and p["heading_level"] == current_chunk["section_level"]
-            ):
-                continue  # same section, ignore duplicate heading
+    # If there are no detected headings, treat the whole document as a single
+    # section so plain text files still get split and embedded.
+    if not any(p.get("is_heading") for p in paragraphs):
+        full_content = [p.get("text", "") for p in paragraphs if p.get("text")]
+        chunks = [
+            {
+                "document_id": document_id,
+                "chunk_id": f"{document_id}_1",
+                "section": "Document",
+                "section_level": 1,
+                "content": full_content,
+                "source_file": source_file,
+            }
+        ]
+    else:
+        chunks = []
+        current_chunk = None
+        chunk_index = 0
+
+        for p in paragraphs:
+            if p.get("is_heading"):
+                # START new chunk ONLY if section actually changes
+                if (
+                    current_chunk
+                    and p["text"] == current_chunk["section"]
+                    and p["heading_level"] == current_chunk["section_level"]
+                ):
+                    continue  # same section, ignore duplicate heading
+
+                if current_chunk:
+                    chunks.append(current_chunk)
+
+                chunk_index += 1
+                current_chunk = {
+                    "document_id": document_id,
+                    "chunk_id": f"{document_id}_{chunk_index}",
+                    "section": p["text"],
+                    "section_level": p["heading_level"],
+                    "content": [],
+                    "source_file": source_file
+                }
+                continue
 
             if current_chunk:
-                chunks.append(current_chunk)
-
-            chunk_index += 1
-            current_chunk = {
-                "document_id": document_id,
-                "chunk_id": f"{document_id}_{chunk_index}",
-                "section": p["text"],
-                "section_level": p["heading_level"],
-                "content": [],
-                "source_file": source_file
-            }
-            continue
+                current_chunk["content"].append(p["text"])
 
         if current_chunk:
-            current_chunk["content"].append(p["text"])
+            chunks.append(current_chunk)
 
-    if current_chunk:
-        chunks.append(current_chunk)
-
-    chunks = _merge_small_sections(chunks, min_section_chars)
+        chunks = _merge_small_sections(chunks, min_section_chars)
 
     final_chunks = []
     final_index = 0
