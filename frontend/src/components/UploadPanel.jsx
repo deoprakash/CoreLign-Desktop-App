@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react'
 import useApiBase from '../hooks/useApiBase'
+import { useNotification } from '../context/NotificationContext'
 
 export default function UploadPanel() {
   const apiBase = useApiBase()
@@ -9,6 +10,7 @@ export default function UploadPanel() {
 
   const fileInputRef = useRef(null)
   const uploadRequestRef = useRef(null)
+  const { push } = useNotification()
 
   const uploadFiles = (files) => new Promise((resolve, reject) => {
     const formData = new FormData()
@@ -60,8 +62,12 @@ export default function UploadPanel() {
         message: `Uploaded ${filesIndexed}/${selectedFiles.length} files. ${totalChunks} chunks indexed.`,
         progress: 100,
       })
+      try {
+        push({ type: 'success', title: 'Upload complete', message: `Uploaded ${filesIndexed}/${selectedFiles.length} files.` })
+      } catch (e) {}
     } catch (error) {
       setUploadState({ status: 'error', message: error.message, progress: 0 })
+      try { push({ type: 'error', title: 'Upload failed', message: error.message }) } catch (e) {}
     } finally {
       uploadRequestRef.current = null
     }

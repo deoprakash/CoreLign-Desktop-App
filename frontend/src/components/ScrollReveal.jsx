@@ -1,27 +1,37 @@
-import React, { useMemo } from 'react'
-import { motion } from 'framer-motion'
+import React, { useEffect, useRef } from 'react'
 
-const directionOffset = {
-  up: [0, 20],
-  down: [0, -20],
-  left: [20, 0],
-  right: [-20, 0],
+function useInView(ref, { threshold = 0.15, once = true } = {}) {
+  useEffect(() => {
+    if (!ref.current) return
+    const el = ref.current
+    const obs = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            el.classList.add('reveal-visible')
+            if (once) obs.unobserve(el)
+          }
+        })
+      },
+      { threshold }
+    )
+    obs.observe(el)
+    return () => obs.disconnect()
+  }, [ref, threshold, once])
 }
 
-const createVariant = (dir = 'up', distance = 20, duration = 0.6) => {
-  const offset = directionOffset[dir] || directionOffset.up
+function makeStyle(direction = 'up', distance = 20, duration = 0.6, delay = 0) {
+  const map = {
+    up: `translateY(${distance}px)`,
+    down: `translateY(-${distance}px)`,
+    left: `translateX(${distance}px)`,
+    right: `translateX(-${distance}px)`,
+  }
+  const transform = map[direction] || map.up
   return {
-    hidden: { opacity: 0, x: offset[0], y: offset[1] },
-    visible: {
-      opacity: 1,
-      x: 0,
-      y: 0,
-      transition: { duration, ease: [0.22, 1, 0.36, 1] },
-    },
-    child: {
-      hidden: { opacity: 0, x: offset[0] / 2, y: offset[1] / 2 },
-      visible: { opacity: 1, x: 0, y: 0, transition: { duration, ease: [0.22, 1, 0.36, 1] } },
-    },
+    transform,
+    opacity: 0,
+    transition: `opacity ${duration}s cubic-bezier(.22,1,.36,1) ${delay}s, transform ${duration}s cubic-bezier(.22,1,.36,1) ${delay}s`,
   }
 }
 
@@ -37,21 +47,19 @@ export function ScrollReveal({
   style,
   ...props
 }) {
-  const variants = useMemo(() => createVariant(direction, distance, duration), [direction, distance, duration])
+  const ref = useRef(null)
+  useInView(ref, { threshold: viewport.amount ?? 0.15, once: viewport.once ?? once })
+  const baseStyle = makeStyle(direction, distance, duration, delay)
 
   return (
-    <motion.div
-      className={className}
-      initial="hidden"
-      whileInView="visible"
-      viewport={viewport}
-      variants={variants}
-      transition={{ delay }}
-      style={style}
+    <div
+      ref={ref}
+      className={`reveal ${className}`}
+      style={{ ...baseStyle, ...style }}
       {...props}
     >
       {children}
-    </motion.div>
+    </div>
   )
 }
 
@@ -67,29 +75,19 @@ export function ScrollRevealGroup({
   style,
   ...props
 }) {
-  const variants = useMemo(() => createVariant(direction, distance, duration), [direction, distance, duration])
+  const ref = useRef(null)
+  useInView(ref, { threshold: viewport.amount ?? 0.12, once: viewport.once ?? true })
 
   const items = React.Children.toArray(children)
 
   return (
-    <motion.div
-      className={className}
-      initial="hidden"
-      whileInView="visible"
-      viewport={viewport}
-      variants={{
-        hidden: {},
-        visible: { transition: { staggerChildren: stagger, delayChildren: delay } },
-      }}
-      style={style}
-      {...props}
-    >
+    <div ref={ref} className={`reveal-group ${className}`} style={style} {...props}>
       {items.map((child, i) => (
-        <motion.div key={(child && child.key) || i} variants={variants.child}>
+        <div key={(child && child.key) || i} className="reveal-item" style={{ transitionDelay: `${delay + i * stagger}s`, transform: `translateY(${distance}px)`, opacity: 0 }}>
           {child}
-        </motion.div>
+        </div>
       ))}
-    </motion.div>
+    </div>
   )
 }
 

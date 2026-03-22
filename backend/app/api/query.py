@@ -108,6 +108,7 @@ async def query_documents(request: QueryRequest):
             "query": query,
             "answer": "I don't have enough information in the provided context to answer that.",
             "sources": metadatas,
+            "chunks": [],
             "confidence": 0.0,
         }
 
@@ -140,9 +141,18 @@ async def query_documents(request: QueryRequest):
         )
     except Exception as e:
         print(f"DEBUG: Failed to write metrics: {e}")
+    # Include the retrieved chunk texts and metadata in the response so the
+    # frontend can surface the original chunks for each answer.
+    chunks = [{
+        "id": row_id,
+        "text": doc,
+        "meta": meta,
+    } for (row_id, doc, meta) in rows]
+
     return {
         "query": query,
         "answer": answer,
         "sources": metadatas,
+        "chunks": chunks,
         "confidence": confidence,
     }

@@ -1,7 +1,10 @@
-import React from 'react'
+import React, { useContext } from 'react'
+import { AppContext } from '../context/AppContext'
 import logo from '../assets/corelignLogo.png'
 
 export default function Footer() {
+  const { setView } = useContext(AppContext)
+
   return (
     <footer className="border-t border-slate-100 bg-white/50">
       <div className="mx-auto flex max-w-6xl flex-col gap-8 px-6 py-10 md:flex-row md:justify-between">
@@ -52,9 +55,9 @@ export default function Footer() {
           <div>
             <p className="text-xs font-semibold text-slate-500">Company</p>
             <ul className="mt-3 space-y-2 text-sm text-slate-600">
-              <li><a href="#" className="hover:text-slate-900">About</a></li>
-              <li><a href="#" className="hover:text-slate-900">Careers</a></li>
-              <li><a href="#" className="hover:text-slate-900">Contact</a></li>
+              <li><button type="button" onClick={() => setView('aboutUs')} className="hover:text-slate-900">About</button></li>
+              <li><button type="button" onClick={() => setView('workspace')} className="hover:text-slate-900">Workspace</button></li>
+              <li><button type="button" onClick={() => setView('contactUs')} className="hover:text-slate-900">Contact</button></li>
             </ul>
           </div>
 

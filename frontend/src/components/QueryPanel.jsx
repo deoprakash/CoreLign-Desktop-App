@@ -1,82 +1,144 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import useApiBase from '../hooks/useApiBase'
+import { useNotification } from '../context/NotificationContext'
+import { postJson } from '../lib/api'
+
+const STORAGE_KEY = 'chat_history_v1'
+
+function makeId() {
+  return `${Date.now()}-${Math.floor(Math.random() * 10000)}`
+}
 
 export default function QueryPanel() {
   const apiBase = useApiBase()
-  const [queryText, setQueryText] = useState('')
-  const [queryState, setQueryState] = useState({ status: 'idle', answer: '', sources: [], confidence: null })
+  const [inputText, setInputText] = useState('')
+  const [messages, setMessages] = useState([])
+  const [status, setStatus] = useState('idle')
+  const listRef = useRef(null)
+  const { push } = useNotification()
 
-  const handleQuery = async (event) => {
-    event.preventDefault()
-    if (!queryText.trim()) {
-      setQueryState({ status: 'error', answer: 'Enter a question to search.', sources: [], confidence: null })
-      return
-    }
-
-    setQueryState({ status: 'loading', answer: '', sources: [], confidence: null })
-
+  useEffect(() => {
     try {
-      const response = await fetch(`${apiBase}/query`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query: queryText.trim(), top_k: 7 }),
-      })
+      const raw = localStorage.getItem(STORAGE_KEY)
+      if (raw) setMessages(JSON.parse(raw))
+    } catch (e) {
+      console.warn('Failed to load chat history', e)
+    }
+  }, [])
 
-      const data = await response.json()
-      if (!response.ok) throw new Error(data?.detail || data?.error || 'Query failed')
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(messages))
+    } catch (e) {
+      console.warn('Failed to save chat history', e)
+    }
+    // scroll to bottom on new message
+    if (listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight
+  }, [messages])
 
-      setQueryState({ status: 'success', answer: data.answer || 'No answer returned.', sources: data.sources || [], confidence: typeof data.confidence === 'number' ? data.confidence : null })
-    } catch (error) {
-      setQueryState({ status: 'error', answer: error.message, sources: [], confidence: null })
+  const handleSend = async (e) => {
+    e?.preventDefault()
+    const text = inputText.trim()
+    if (!text) return
+
+    const userMsg = { id: makeId(), role: 'user', text, createdAt: Date.now() }
+    setMessages((m) => [...m, userMsg])
+    setInputText('')
+
+    setStatus('loading')
+    try {
+      const data = await postJson(`${apiBase}/query`, { query: text, top_k: 7 })
+
+      const assistantMsg = {
+        id: makeId(),
+        role: 'assistant',
+        text: data.answer || 'No answer returned.',
+        chunks: Array.isArray(data.chunks) ? data.chunks : [],
+        sources: Array.isArray(data.sources) ? data.sources : [],
+        confidence: typeof data.confidence === 'number' ? data.confidence : null,
+        createdAt: Date.now(),
+      }
+
+      setMessages((m) => [...m, assistantMsg])
+      if (!data.answer || data.answer === '') {
+        push({ type: 'warn', title: 'No answer', message: 'No answer returned for this query.' })
+      }
+    } catch (err) {
+      const errMsg = { id: makeId(), role: 'assistant', text: `Error: ${err.message}`, chunks: [], sources: [], createdAt: Date.now() }
+      setMessages((m) => [...m, errMsg])
+      try { push({ type: 'error', title: 'Query failed', message: err.message }) } catch (e) {}
+    } finally {
+      setStatus('idle')
     }
   }
 
-  const displaySources = useMemo(() => {
-    const rawSources = Array.isArray(queryState.sources) ? queryState.sources : []
-    const unique = new Map()
+  const clearHistory = () => {
+    setMessages([])
+    try { localStorage.removeItem(STORAGE_KEY) } catch (e) {}
+  }
 
-    rawSources.forEach((source) => {
-      const file = source?.source_file || 'Unknown file'
-      const section = source?.section || 'Untitled section'
-      const key = `${file}::${section}`
-      if (!unique.has(key)) unique.set(key, { file, section })
-    })
-
-    return Array.from(unique.values()).slice(0, 6)
-  }, [queryState.sources])
+  const renderChunks = (chunks = []) => {
+    if (!chunks.length) return null
+    return (
+      <div className="mt-3 space-y-2 text-sm">
+        {chunks.map((c) => (
+          <div key={c.id || c.meta?.id || Math.random()} className="rounded-xl bg-slate-50 p-3">
+            <div className="text-xs text-slate-500">{c.meta?.section || c.meta?.title || 'Section'}</div>
+            <div className="mt-1 text-slate-700">{c.text}</div>
+            {c.meta?.source_file || c.meta?.source ? <div className="mt-2 text-[11px] text-slate-400">{c.meta?.source_file || c.meta?.source}</div> : null}
+          </div>
+        ))}
+      </div>
+    )
+  }
 
   return (
-    <div className="glass rounded-3xl p-8">
-      <h2 className="font-display text-2xl font-semibold text-slate-900">Ask a query</h2>
-      <p className="mt-2 text-sm text-slate-600">Query your indexed docs. Answers include metadata from the most relevant chunks.</p>
-      <form className="mt-6 space-y-4" onSubmit={handleQuery}>
-        <textarea className="min-h-[120px] w-full rounded-2xl border border-slate-200 bg-white/80 px-4 py-3 text-sm text-slate-700 outline-none focus:border-teal-500" placeholder="Ask a question about your uploaded documents..." value={queryText} onChange={(e) => setQueryText(e.target.value)} />
-        <button className="btn-primary" type="submit">{queryState.status === 'loading' ? 'Searching...' : 'Run query'}</button>
-      </form>
-
-      <div className="mt-6 space-y-4">
-        {queryState.answer ? (
-          <div className="rounded-2xl bg-slate-900 p-5 text-sm text-slate-100">
-            <p className="text-xs uppercase tracking-wide text-slate-400">Answer</p>
-            <p className="mt-3">{queryState.answer}</p>
-            {queryState.confidence !== null ? <p className="mt-3 text-xs text-slate-400">Confidence: {queryState.confidence}</p> : null}
-          </div>
-        ) : null}
-
-        {displaySources.length ? (
-          <div className="rounded-2xl bg-white/80 p-5">
-            <p className="text-xs uppercase tracking-wide text-slate-400">Sources</p>
-            <ul className="mt-3 space-y-2 text-xs text-slate-600">
-              {displaySources.map((source) => (
-                <li key={`${source.file}-${source.section}`} className="rounded-xl bg-slate-50 px-3 py-2">
-                  <p className="text-slate-700">{source.section}</p>
-                  <p className="text-[11px] text-slate-400">{source.file}</p>
-                </li>
-              ))}
-            </ul>
-          </div>
-        ) : null}
+    <div className="glass rounded-3xl p-8 flex flex-col h-full">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="font-display text-2xl font-semibold text-slate-900">Conversation</h2>
+          <p className="mt-1 text-sm text-slate-600">Persistent chat with retrieved chunks and history.</p>
+        </div>
+        <div>
+          <button className="btn-ghost" onClick={clearHistory}>Clear</button>
+        </div>
       </div>
+
+      <div ref={listRef} className="mt-4 flex-1 overflow-y-auto space-y-4 pr-2" style={{ maxHeight: '60vh' }}>
+        {messages.length === 0 ? (
+          <div className="text-sm text-slate-500">No messages yet — ask a question to begin.</div>
+        ) : null}
+
+        {messages.map((msg) => (
+          <div key={msg.id} className={`rounded-2xl p-4 ${msg.role === 'user' ? 'bg-white/80 self-end' : 'bg-slate-900 text-slate-100'}`}>
+            <div className="flex items-baseline justify-between">
+              <div className="text-sm font-medium">{msg.role === 'user' ? 'You' : 'Assistant'}</div>
+              <div className="text-[11px] text-slate-400 ml-2">{new Date(msg.createdAt).toLocaleString()}</div>
+            </div>
+            <div className={`mt-2 text-sm ${msg.role === 'user' ? 'text-slate-700' : ''}`}>{msg.text}</div>
+            {msg.role === 'assistant' ? (
+              <div className="mt-3 text-xs text-slate-400">{msg.confidence !== undefined && msg.confidence !== null ? `Confidence: ${msg.confidence}` : null}</div>
+            ) : null}
+
+            {msg.role === 'assistant' && msg.chunks ? (
+              <div className="mt-4">
+                <details className="text-sm">
+                  <summary className="cursor-pointer text-slate-500">Show retrieved chunks ({msg.chunks.length})</summary>
+                  {renderChunks(msg.chunks)}
+                </details>
+              </div>
+            ) : null}
+          </div>
+        ))}
+      </div>
+
+      <form className="mt-4" onSubmit={handleSend}>
+        <textarea value={inputText} onChange={(e) => setInputText(e.target.value)} placeholder="Ask a question about your uploaded documents..." className="min-h-[80px] w-full rounded-2xl border border-slate-200 bg-white/80 px-4 py-3 text-sm text-slate-700 outline-none focus:border-teal-500" />
+        <div className="mt-3 flex items-center gap-3">
+          <button className="btn-primary" type="submit" disabled={status === 'loading'}>{status === 'loading' ? 'Thinking...' : 'Send'}</button>
+          <button className="btn-ghost" type="button" onClick={() => setInputText('')}>Clear input</button>
+        </div>
+      </form>
     </div>
   )
 }

@@ -38,6 +38,25 @@ body {
   .btn-ghost {
     @apply inline-flex items-center gap-2 rounded-full border border-slate-300 px-5 py-3 text-sm font-semibold text-slate-700 transition hover:-translate-y-0.5 hover:border-slate-400 hover:text-slate-900;
   }
+
+  /* Simple reveal utility to replace framer-motion */
+  .reveal {
+    will-change: transform, opacity;
+  }
+
+  .reveal.reveal-visible {
+    transform: none !important;
+    opacity: 1 !important;
+  }
+
+  .reveal-group .reveal-item {
+    will-change: transform, opacity;
+  }
+
+  .reveal-group.reveal-visible .reveal-item {
+    transform: none !important;
+    opacity: 1 !important;
+  }
 }
 
 @layer utilities {

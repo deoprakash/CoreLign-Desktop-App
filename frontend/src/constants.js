@@ -21,7 +21,7 @@ export const steps = [
 ]
 
 export const stats = [
-  { label: 'Avg. Query', value: '480ms' },
-  { label: 'Docs Indexed', value: '12.4k' },
-  { label: 'Chunk Recall', value: '94%' },
+  { label: 'Avg. Response', value: '647.72 ms' },
+  { label: 'Hallucination', value: '~5%' },
+  { label: 'Chunks Recall', value: '94%' },
 ]

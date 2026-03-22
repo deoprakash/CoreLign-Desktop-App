@@ -38,6 +38,13 @@ export default function Header() {
         >
           Workspace
         </button>
+        <button
+          className={view === 'insights' ? 'text-slate-900' : 'hover:text-slate-900'}
+          onClick={() => setView('insights')}
+          type="button"
+        >
+          Insights
+        </button>
         <button className="btn-primary">Book a demo</button>
       </nav>
     </header>
