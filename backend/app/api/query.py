@@ -62,7 +62,9 @@ async def query_documents(request: QueryRequest):
             "query": query,
             "answer": "I don't have enough information in the provided context to answer that.",
             "sources": [],
+            "chunks": [],
             "confidence": 0.0,
+            "semantic_similarity": 0.0,
         }
 
     # 3️⃣ Fetch documents from Chroma
@@ -110,13 +112,23 @@ async def query_documents(request: QueryRequest):
             "sources": metadatas,
             "chunks": [],
             "confidence": 0.0,
+            "semantic_similarity": 0.0,
         }
 
-    # Normalize distances into a 0-1 confidence score (lower distance => higher confidence)
+    # Similarity values from FAISS are cosine similarities because the index is
+    # normalized with inner product search.
     confidence = 0.0
+    semantic_similarity = 0.0
     if similarities:
         avg_similarity = sum(similarities) / len(similarities)
-        confidence = round(max(0.0, min(1.0, avg_similarity)), 2)
+        top_similarity = max(similarities)
+        confidence = round(max(0.0, min(1.0, avg_similarity)), 3)
+        semantic_similarity = round(max(0.0, min(1.0, top_similarity)), 3)
+
+    score_by_chunk_id = {
+        chunk_id: round(max(0.0, min(1.0, score)), 3)
+        for chunk_id, score in zip(chunk_ids, similarities)
+    }
 
     # Ask Groq
     t_gen_start = time.perf_counter()
@@ -147,12 +159,20 @@ async def query_documents(request: QueryRequest):
         "id": row_id,
         "text": doc,
         "meta": meta,
+        "score": score_by_chunk_id.get(row_id, None),
     } for (row_id, doc, meta) in rows]
+
+    sources = [{
+        "id": row_id,
+        "metadata": meta,
+        "score": score_by_chunk_id.get(row_id, None),
+    } for (row_id, _, meta) in rows]
 
     return {
         "query": query,
         "answer": answer,
-        "sources": metadatas,
+        "sources": sources,
         "chunks": chunks,
         "confidence": confidence,
+        "semantic_similarity": semantic_similarity,
     }

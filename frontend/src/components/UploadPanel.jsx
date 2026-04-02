@@ -9,40 +9,7 @@ export default function UploadPanel() {
   const [isDragging, setIsDragging] = useState(false)
 
   const fileInputRef = useRef(null)
-  const uploadRequestRef = useRef(null)
   const { push } = useNotification()
-
-  const uploadFiles = (files) => new Promise((resolve, reject) => {
-    const formData = new FormData()
-    files.forEach((file) => formData.append('files', file))
-
-    const xhr = new XMLHttpRequest()
-    xhr.open('POST', `${apiBase}/upload/upload`)
-    uploadRequestRef.current = xhr
-
-    xhr.upload.onprogress = (event) => {
-      if (!event.lengthComputable) return
-      const percent = Math.round((event.loaded / event.total) * 100)
-      setUploadState((prev) => ({ ...prev, progress: percent }))
-    }
-
-    xhr.onload = () => {
-      try {
-        const data = JSON.parse(xhr.responseText || '{}')
-        if (xhr.status >= 200 && xhr.status < 300) {
-          resolve(data)
-        } else {
-          reject(new Error(data?.detail || 'Upload failed'))
-        }
-      } catch (error) {
-        reject(error)
-      }
-    }
-
-    xhr.onabort = () => reject(new Error('Upload cancelled.'))
-    xhr.onerror = () => reject(new Error('Network error during upload.'))
-    xhr.send(formData)
-  })
 
   const handleUpload = async (event) => {
     event.preventDefault()
@@ -51,30 +18,37 @@ export default function UploadPanel() {
       return
     }
 
-    setUploadState({ status: 'loading', message: 'Uploading and indexing...', progress: 0 })
+    setUploadState({ status: 'loading', message: 'Uploading documents...', progress: 0 })
 
     try {
-      const data = await uploadFiles(selectedFiles)
-      const filesIndexed = data.files_indexed ?? 0
-      const totalChunks = data.total_chunks_embedded ?? 0
+      const formData = new FormData()
+      selectedFiles.forEach((file) => formData.append('files', file))
+
+      const response = await fetch(`${apiBase}/upload/upload`, {
+        method: 'POST',
+        body: formData,
+      })
+
+      const data = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        throw new Error(data?.detail || 'Upload failed')
+      }
+
       setUploadState({
         status: 'success',
-        message: `Uploaded ${filesIndexed}/${selectedFiles.length} files. ${totalChunks} chunks indexed.`,
+        message: `Uploaded ${data.files_indexed ?? selectedFiles.length} files. ${data.total_chunks_embedded ?? 0} chunks indexed.`,
         progress: 100,
       })
       try {
-        push({ type: 'success', title: 'Upload complete', message: `Uploaded ${filesIndexed}/${selectedFiles.length} files.` })
+        push({ type: 'success', title: 'Upload complete', message: `Uploaded ${data.files_indexed ?? selectedFiles.length} files.` })
       } catch (e) {}
     } catch (error) {
       setUploadState({ status: 'error', message: error.message, progress: 0 })
       try { push({ type: 'error', title: 'Upload failed', message: error.message }) } catch (e) {}
-    } finally {
-      uploadRequestRef.current = null
     }
   }
 
   const handleCancelUpload = () => {
-    if (uploadRequestRef.current) uploadRequestRef.current.abort()
     setUploadState({ status: 'idle', message: '', progress: 0 })
   }
 

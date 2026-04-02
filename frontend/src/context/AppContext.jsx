@@ -7,6 +7,10 @@ const VIEW_STORAGE_KEY = 'app_view'
 export function AppProvider({ children }) {
   const getInitialView = () => {
     try {
+      // In development, always start on the landing view so the dev server
+      // opening or hot-reloads don't restore the previous view from storage.
+      if (import.meta.env && import.meta.env.DEV) return 'landing'
+
       const v = localStorage.getItem(VIEW_STORAGE_KEY)
       return v || 'landing'
     } catch (e) {

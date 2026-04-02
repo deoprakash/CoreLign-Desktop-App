@@ -1,2 +1,32 @@
-# Corelign
-Multi Agent Orchestration System.
+﻿# Corelign Backend
+
+FastAPI backend for the implemented document ingestion and retrieval system.
+
+## Current API
+- `POST /upload/upload` accepts one or more PDF or DOCX files.
+- `POST /query` accepts a question and returns an answer with retrieved chunks and confidence.
+- `GET /` returns a simple health check response.
+
+## Implemented Backend Areas
+- `app/main.py` for application setup and CORS.
+- `app/api/upload.py` for file ingestion and indexing.
+- `app/api/query.py` for retrieval and answer generation.
+- `app/ingestion/` for PDF/DOCX extraction and semantic chunking.
+- `app/embeddings/embedder.py` for sentence-transformer embeddings.
+- `app/vector_store/` for FAISS and Chroma persistence.
+- `app/llm/groq_llm.py` for optional Groq-backed answer generation.
+- `app/utils/metrics.py` for query timing logs.
+- `app/models/schemas.py` for request and response models.
+
+## Data Flow
+1. Uploaded files are saved under `data/raw_docs/`.
+2. PDF and DOCX loaders extract paragraph-level text.
+3. Headings are detected and contextual sections are assigned.
+4. Semantic chunks are created with overlap and small-section merging.
+5. Chunk texts are embedded with `all-MiniLM-L6-v2`.
+6. FAISS stores vectors and Chroma stores chunk text plus metadata.
+7. Query requests are embedded, searched, and optionally answered by Groq.
+
+## Notes
+- The backend code currently exposes direct upload/query endpoints rather than a full agent runtime.
+- This README only documents code that exists in the backend repository.

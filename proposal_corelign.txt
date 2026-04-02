@@ -1,0 +1,126 @@
+Corelign — Implemented System Report
+===================================
+
+Version: 1.0
+Date: 2026-04-02
+Author: Corelign Team
+
+---
+
+1. Executive Summary
+--------------------
+Corelign is an implemented document ingestion and retrieval application. The current codebase uses FastAPI for the backend, React + Vite for the frontend, PDF/DOCX loaders for ingestion, semantic chunking for section-aware splitting, sentence-transformer embeddings, FAISS for similarity search, Chroma for chunk metadata storage, and Groq for optional answer generation.
+
+Primary benefits:
+- Faster access to institutional knowledge
+- Search grounded in uploaded source documents
+- Lightweight local storage for vectors and chunk metadata
+
+
+2. What Is Implemented
+----------------------
+The repository currently includes:
+- FastAPI backend with CORS and two main routers: `/upload` and `/query`.
+- PDF ingestion using `pdfplumber`.
+- DOCX ingestion using `python-docx`.
+- Heuristic heading detection and contextual section assignment.
+- Semantic chunk creation with overlap and small-section merging.
+- Sentence-transformer embeddings using `all-MiniLM-L6-v2`.
+- FAISS vector search with inner-product normalization.
+- Chroma storage for chunk text and metadata.
+- Optional Groq-backed answer generation through `langchain_groq`.
+- JSON-line query metrics written to `data/metrics.log`.
+- React frontend panels for upload and question answering.
+
+
+3. Runtime Flow
+--------------
+Implemented flow in the backend code:
+
+```mermaid
+flowchart LR
+  UI[Frontend (React)] -->|POST /upload/upload| API[FastAPI API]
+  UI -->|POST /query| API
+  API --> Upload[Upload Router]
+  Upload --> DocLoad[PDF/DOCX loaders]
+  DocLoad --> Chunking[Semantic chunking]
+  Chunking --> Embedder[SentenceTransformer embedder]
+  Embedder --> FAISS[FAISS index]
+  Chunking --> Chroma[Chroma collection]
+  API --> Query[Query Router]
+  Query --> FAISS
+  Query --> Chroma
+  Query --> Groq[Groq LLM]
+```
+
+Query execution in the code:
+1. The query is embedded with `all-MiniLM-L6-v2`.
+2. FAISS returns the nearest chunk IDs and similarity scores.
+3. Chroma returns the corresponding chunk texts and metadata.
+4. The backend builds a context string from the retrieved chunks.
+5. `GroqLLM` generates an answer when `GROQ_API_KEY` is available.
+6. The response includes answer text, chunks, sources, and confidence.
+
+
+4. Storage Used By The Code
+---------------------------
+- Raw uploads: `data/raw_docs/`
+- FAISS index: `data/vector_store/faiss.index`
+- FAISS chunk IDs: `data/vector_store/chunk_ids.json`
+- Chroma persistence: local Chroma directory under `data/chroma_db/`
+- Metrics: `data/metrics.log`
+
+
+5. API Surface
+--------------
+- `POST /upload/upload` accepts one or more PDF/DOCX files.
+- `POST /query` accepts a query and returns an answer with retrieved chunks.
+- `GET /` returns a simple status response.
+
+The current backend code does not define a separate multi-agent runtime or agent scheduler.
+
+
+6. Frontend Surface
+-------------------
+- `frontend/src/pages/Home.jsx` provides the landing page.
+- `frontend/src/pages/Workspace.jsx` combines upload and query panels.
+- `frontend/src/components/UploadPanel.jsx` handles file selection and upload.
+- `frontend/src/components/QueryPanel.jsx` handles chat-style querying and history.
+- `frontend/src/components/ToastContainer.jsx` and `frontend/src/context/NotificationContext.jsx` handle notifications.
+- `frontend/src/lib/api.js` wraps fetch calls.
+
+The frontend posts directly to `POST /upload/upload` and `POST /query`.
+
+
+7. Code Components
+------------------
+- Backend entry point: `backend/app/main.py`
+- Upload router: `backend/app/api/upload.py`
+- Query router: `backend/app/api/query.py`
+- DOCX loader: `backend/app/ingestion/docx_loader.py`
+- PDF loader: `backend/app/ingestion/pdf_loader.py`
+- Semantic chunking: `backend/app/ingestion/chunking.py`
+- Embeddings: `backend/app/embeddings/embedder.py`
+- FAISS index: `backend/app/vector_store/faiss_index.py`
+- Chroma store: `backend/app/vector_store/chroma_store.py`
+- FAISS singleton: `backend/app/vector_store/index_instance.py`
+- Groq LLM wrapper: `backend/app/llm/groq_llm.py`
+- Metrics recorder: `backend/app/utils/metrics.py`
+- Frontend upload panel: `frontend/src/components/UploadPanel.jsx`
+- Frontend query panel: `frontend/src/components/QueryPanel.jsx`
+
+
+8. Data Model
+-------------
+- Document: `document_id`, `file_name`, raw extracted content
+- Chunk: `chunk_id`, `section`, `section_level`, `content`, `source_file`
+- Embedding: vector output from `Embedder`
+- Index entry: FAISS row mapped to chunk ID
+- Query response: answer text, retrieved chunks, sources, confidence
+
+
+9. Notes
+--------
+- The backend currently uses a direct retrieval pipeline, not multi-agent orchestration.
+- Several previously proposed enterprise features, such as RBAC, distributed workers, and background queues, are not implemented in the current code.
+- This report is limited to functionality that exists in the repository.

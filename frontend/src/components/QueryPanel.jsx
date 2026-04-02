@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import useApiBase from '../hooks/useApiBase'
 import { useNotification } from '../context/NotificationContext'
 import { postJson } from '../lib/api'
@@ -66,7 +66,7 @@ export default function QueryPanel() {
     } catch (err) {
       const errMsg = { id: makeId(), role: 'assistant', text: `Error: ${err.message}`, chunks: [], sources: [], createdAt: Date.now() }
       setMessages((m) => [...m, errMsg])
-      try { push({ type: 'error', title: 'Query failed', message: err.message }) } catch (e) {}
+      push({ type: 'error', title: 'Query failed', message: err.message })
     } finally {
       setStatus('idle')
     }
@@ -74,7 +74,7 @@ export default function QueryPanel() {
 
   const clearHistory = () => {
     setMessages([])
-    try { localStorage.removeItem(STORAGE_KEY) } catch (e) {}
+    localStorage.removeItem(STORAGE_KEY)
   }
 
   const renderChunks = (chunks = []) => {
@@ -83,9 +83,11 @@ export default function QueryPanel() {
       <div className="mt-3 space-y-2 text-sm">
         {chunks.map((c) => (
           <div key={c.id || c.meta?.id || Math.random()} className="rounded-xl bg-slate-50 p-3">
-            <div className="text-xs text-slate-500">{c.meta?.section || c.meta?.title || 'Section'}</div>
+            <div className="text-xs text-slate-500">{c.meta?.source_file || c.metadata?.source_file || 'Source file unknown'}</div>
             <div className="mt-1 text-slate-700">{c.text}</div>
-            {c.meta?.source_file || c.meta?.source ? <div className="mt-2 text-[11px] text-slate-400">{c.meta?.source_file || c.meta?.source}</div> : null}
+            <div className="mt-2 text-[11px] text-slate-600">
+              {typeof c.score === 'number' ? `Similarity: ${c.score.toFixed(3)}` : null}
+            </div>
           </div>
         ))}
       </div>
@@ -117,17 +119,28 @@ export default function QueryPanel() {
             </div>
             <div className={`mt-2 text-sm ${msg.role === 'user' ? 'text-slate-700' : ''}`}>{msg.text}</div>
             {msg.role === 'assistant' ? (
-              <div className="mt-3 text-xs text-slate-400">{msg.confidence !== undefined && msg.confidence !== null ? `Confidence: ${msg.confidence}` : null}</div>
+              <div className="mt-3 text-xs text-slate-400">
+                {msg.confidence !== undefined && msg.confidence !== null ? `Confidence: ${msg.confidence.toFixed(3)}` : null}
+              </div>
             ) : null}
 
             {msg.role === 'assistant' && msg.chunks ? (
               <div className="mt-4">
                 <details className="text-sm">
-                  <summary className="cursor-pointer text-slate-500">Show retrieved chunks ({msg.chunks.length})</summary>
+                  <summary className="cursor-pointer text-slate-500">Show Sources ({msg.chunks.length})</summary>
                   {renderChunks(msg.chunks)}
                 </details>
               </div>
             ) : null}
+
+            {/* {msg.role === 'assistant' && msg.sources?.length ? (
+              <div className="mt-4">
+                <details className="text-sm">
+                  <summary className="cursor-pointer text-slate-500">Show sources ({msg.sources.length})</summary>
+                  {renderSources(msg.sources)}
+                </details>
+              </div>
+            ) : null} */}
           </div>
         ))}
       </div>

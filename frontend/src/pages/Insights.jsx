@@ -159,7 +159,7 @@ export default function Insights() {
         </div>
 
         <div className="rounded-2xl bg-white/90 p-6 shadow-sm" style={{ height: 360 }}>
-          <h3 className="text-lg font-semibold text-slate-800 mb-3">Hallucination Reduction Comparison</h3>
+          <h3 className="text-lg font-semibold text-slate-800 mb-3">Hallucination Risk Comparison</h3>
           <div style={{ height: 260 }}>
             <Line data={hallucinationSeries} options={halluOptions} />
           </div>

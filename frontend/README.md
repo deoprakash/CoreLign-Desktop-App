@@ -1,16 +1,25 @@
-# React + Vite
+﻿# Corelign Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+React + Vite user interface for the Corelign document ingestion and retrieval workflow.
 
-Currently, two official plugins are available:
+## Implemented UI
+- `frontend/src/pages/Home.jsx` provides the landing view and feature overview.
+- `frontend/src/pages/Workspace.jsx` combines the upload and query panels.
+- `frontend/src/components/UploadPanel.jsx` handles file selection, upload submission, and job polling.
+- `frontend/src/components/QueryPanel.jsx` handles chat-style question submission and response rendering.
+- `frontend/src/components/ToastContainer.jsx` and `frontend/src/context/NotificationContext.jsx` provide notifications.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+## Supporting Frontend Areas
+- `frontend/src/context/AppContext.jsx` controls the active view.
+- `frontend/src/lib/api.js` provides fetch helpers.
+- `frontend/src/hooks/useApiBase.js` resolves the backend base URL.
+- `frontend/src/pages/Insights.jsx` shows metrics-style charts and summary visuals.
+- `frontend/src/pages/AboutUs.jsx` and `frontend/src/pages/ContactUs.jsx` provide static content pages.
 
-## React Compiler
+## Current Integration
+- The upload panel posts files to `POST /upload/upload`.
+- The query panel posts questions to `POST /query`.
+- Local chat history is persisted in `localStorage`.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+## Notes
+- This README only describes the implemented frontend code in the repository.
