@@ -95,10 +95,10 @@ export default function QueryPanel() {
   }
 
   return (
-    <div className="glass rounded-3xl p-8 flex flex-col h-full">
+    <div className="glass flex min-h-[72vh] flex-col rounded-3xl p-6 lg:min-h-[78vh] xl:p-8">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="font-display text-2xl font-semibold text-slate-900">Conversation</h2>
+          <h2 className="font-display text-2xl font-semibold text-slate-900 lg:text-[2rem]">Conversation</h2>
           <p className="mt-1 text-sm text-slate-600">Persistent chat with retrieved chunks and history.</p>
         </div>
         <div>
@@ -106,7 +106,7 @@ export default function QueryPanel() {
         </div>
       </div>
 
-      <div ref={listRef} className="mt-4 flex-1 overflow-y-auto space-y-4 pr-2" style={{ maxHeight: '60vh' }}>
+      <div ref={listRef} className="mt-4 min-h-0 flex-1 space-y-4 overflow-y-auto pr-2">
         {messages.length === 0 ? (
           <div className="text-sm text-slate-500">No messages yet — ask a question to begin.</div>
         ) : null}
@@ -145,7 +145,7 @@ export default function QueryPanel() {
         ))}
       </div>
 
-      <form className="mt-4" onSubmit={handleSend}>
+      <form className="mt-4 border-t border-white/50 pt-4" onSubmit={handleSend}>
         <textarea value={inputText} onChange={(e) => setInputText(e.target.value)} placeholder="Ask a question about your uploaded documents..." className="min-h-[80px] w-full rounded-2xl border border-slate-200 bg-white/80 px-4 py-3 text-sm text-slate-700 outline-none focus:border-teal-500" />
         <div className="mt-3 flex items-center gap-3">
           <button className="btn-primary" type="submit" disabled={status === 'loading'}>{status === 'loading' ? 'Thinking...' : 'Send'}</button>

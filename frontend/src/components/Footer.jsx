@@ -7,7 +7,7 @@ export default function Footer() {
 
   return (
     <footer className="border-t border-slate-100 bg-white/50">
-      <div className="mx-auto flex max-w-6xl flex-col gap-8 px-6 py-10 md:flex-row md:justify-between">
+      <div className="mx-auto flex max-w-[1600px] flex-col gap-8 px-6 py-10 md:flex-row md:justify-between">
         <div className="max-w-sm">
           <div className="flex items-center gap-3">
             <div className="h-10 w-10 flex items-center justify-center">
@@ -74,7 +74,7 @@ export default function Footer() {
       </div>
 
       <div className="border-t border-slate-100 px-6 py-4">
-        <div className="mx-auto max-w-6xl text-center text-xs text-slate-500">
+        <div className="mx-auto max-w-[1600px] text-center text-xs text-slate-500">
           © {new Date().getFullYear()} Corelign. All rights reserved.
         </div>
       </div>

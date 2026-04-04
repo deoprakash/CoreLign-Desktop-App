@@ -6,7 +6,7 @@ export default function Header() {
   const { view, setView } = useContext(AppContext)
 
   return (
-    <header className="mx-auto flex w-full max-w-6xl items-center justify-between px-6 pb-4 pt-8">
+    <header className="mx-auto flex w-full max-w-[1600px] items-center justify-between px-6 pb-4 pt-8">
       <div className="flex items-center gap-3">
           <div className="flex h-12 w-12 items-center justify-center">
             <img src={logo} alt="Corelign" className="object-contain" />

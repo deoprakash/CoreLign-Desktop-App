@@ -18,7 +18,7 @@ function App() {
       <div className="relative overflow-hidden">
         <Header />
 
-        <main className="mx-auto flex w-full max-w-6xl flex-col gap-16 px-6 pb-20 pt-4">
+        <main className="mx-auto flex w-full max-w-[1600px] flex-col gap-16 px-6 pb-20 pt-4">
           {view === 'workspace' && <Workspace />}
           {view === 'landing' && <Home />}
           {view === 'aboutUs' && <AboutUs />}

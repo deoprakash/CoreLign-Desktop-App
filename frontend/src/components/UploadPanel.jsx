@@ -60,12 +60,12 @@ export default function UploadPanel() {
   }
 
   return (
-    <div className="glass rounded-3xl p-8">
-      <h1 className="font-display text-3xl font-semibold text-slate-900">Upload & Index</h1>
-      <p className="mt-2 text-sm text-slate-600">Add one or more DOCX/PDF files and we will chunk, embed, and index them automatically.</p>
+    <div className="glass rounded-3xl p-6 lg:p-5 xl:p-6">
+      <h1 className="font-display text-2xl font-semibold text-slate-900">Upload & Index</h1>
+      <p className="mt-2 text-sm text-slate-600">Add DOCX/PDF files and we will chunk, embed, and index them automatically.</p>
       <form className="mt-6 space-y-4" onSubmit={handleUpload}>
         <div
-          className={`rounded-2xl border border-dashed p-6 transition ${isDragging ? 'border-teal-400 bg-teal-100/80' : 'border-teal-200 bg-teal-50/70'}`}
+          className={`rounded-2xl border border-dashed p-5 transition ${isDragging ? 'border-teal-400 bg-teal-100/80' : 'border-teal-200 bg-teal-50/70'}`}
           onDragEnter={(event) => { event.preventDefault(); setIsDragging(true) }}
           onDragOver={(event) => { event.preventDefault(); setIsDragging(true) }}
           onDragLeave={(event) => { event.preventDefault(); setIsDragging(false) }}
@@ -82,7 +82,7 @@ export default function UploadPanel() {
           <div className="text-center">
             <p className="text-sm font-medium text-slate-700">{isDragging ? 'Drop files here' : 'Drag & drop files or browse'}</p>
             <p className="text-xs text-slate-500">Supports PDF & DOCX</p>
-            <button className="btn-primary mt-5" type="button" onClick={() => fileInputRef.current?.click()}>Select files</button>
+            <button className="btn-primary mt-4" type="button" onClick={() => fileInputRef.current?.click()}>Select files</button>
           </div>
         </div>
 
