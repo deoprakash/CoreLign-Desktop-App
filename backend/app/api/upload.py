@@ -1,4 +1,4 @@
-from fastapi import APIRouter, UploadFile, File, HTTPException, status
+from fastapi import APIRouter, UploadFile, File, Form, HTTPException, status
 import uuid
 import os
 from typing import List, Optional
@@ -16,10 +16,11 @@ from app.ingestion.chunking import (
 )
 
 from app.embeddings.embedder import Embedder
-from app.vector_store import chroma_store
-
-from app.vector_store.index_instance import faiss_index
-# from app.vector_store.faiss_index import FaissIndex
+from app.vector_store.workspace_store import (
+    get_workspace_chroma_store,
+    get_workspace_faiss_index,
+    normalize_folder_id,
+)
 
 
 router = APIRouter()
@@ -32,15 +33,63 @@ CHUNK_OVERLAP = 120
 MIN_SECTION_CHARS = 600
 
 
-async def _ingest_single_file(file: UploadFile):
+def _file_already_exists_in_folder(file_name: str, folder_id: str, chroma_store) -> bool:
+    folder_upload_dir = os.path.join(UPLOAD_DIR, folder_id)
+    os.makedirs(folder_upload_dir, exist_ok=True)
+
+    # Check already uploaded raw files in this folder.
+    suffix = f"_{file_name}"
+    try:
+        if any(existing.endswith(suffix) for existing in os.listdir(folder_upload_dir)):
+            return True
+    except Exception:
+        pass
+
+    # Check already indexed chunks for this file in this folder collection.
+    file_key = file_name.strip().lower()
+    try:
+        indexed = chroma_store.collection.get(
+            where={"source_file_key": file_key},
+            include=["metadatas"],
+        )
+        if indexed.get("ids"):
+            return True
+    except Exception:
+        # Backward compatibility for older records without source_file_key.
+        try:
+            indexed = chroma_store.collection.get(
+                where={"source_file": file_name},
+                include=["metadatas"],
+            )
+            if indexed.get("ids"):
+                return True
+        except Exception:
+            pass
+
+    return False
+
+
+async def _ingest_single_file(file: UploadFile, folder_id: str, chroma_store):
     if not file or not file.filename:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid file upload.",
         )
 
+    if _file_already_exists_in_folder(file.filename, folder_id, chroma_store):
+        return {
+            "document_id": None,
+            "file_name": file.filename,
+            "status": "duplicate_skipped",
+            "chunks_created": 0,
+            "chunks_embedded": 0,
+            "message": "File already exists in this workspace folder.",
+        }, []
+
     document_id = str(uuid.uuid4())
-    file_path = os.path.join(UPLOAD_DIR, f"{document_id}_{file.filename}")
+    folder_upload_dir = os.path.join(UPLOAD_DIR, folder_id)
+    os.makedirs(folder_upload_dir, exist_ok=True)
+    file_path = os.path.join(folder_upload_dir, f"{document_id}_{file.filename}")
 
     with open(file_path, "wb") as f:
         f.write(await file.read())
@@ -78,6 +127,8 @@ async def _ingest_single_file(file: UploadFile):
     chunks = merge_empty_parent_chunks(chunks)
 
     chunks_to_embed = [c for c in chunks if c["section_level"] != 0]
+    for chunk in chunks_to_embed:
+        chunk["folder_id"] = folder_id
 
     # Debug output (optional)
     print("\n--- Semantic Chunks ---")
@@ -100,7 +151,10 @@ async def _ingest_single_file(file: UploadFile):
 async def upload_document(
     files: Optional[List[UploadFile]] = File(None),
     file: Optional[UploadFile] = File(None),
+    folder_id: Optional[str] = Form("default"),
 ):
+    normalized_folder_id = normalize_folder_id(folder_id)
+
     normalized_files: List[UploadFile] = []
     if files:
         normalized_files.extend(files)
@@ -115,9 +169,26 @@ async def upload_document(
 
     indexed_chunks = []
     document_results = []
+    faiss_index = get_workspace_faiss_index(normalized_folder_id)
+    chroma_store = get_workspace_chroma_store(normalized_folder_id)
+    seen_names = set()
 
     for uploaded_file in normalized_files:
-        result, chunks_to_embed = await _ingest_single_file(uploaded_file)
+        file_name_key = (uploaded_file.filename or "").strip().lower()
+        if file_name_key and file_name_key in seen_names:
+            result = {
+                "document_id": None,
+                "file_name": uploaded_file.filename,
+                "status": "duplicate_skipped",
+                "chunks_created": 0,
+                "chunks_embedded": 0,
+                "message": "Duplicate file name in this upload batch.",
+            }
+            chunks_to_embed = []
+        else:
+            seen_names.add(file_name_key)
+            result, chunks_to_embed = await _ingest_single_file(uploaded_file, normalized_folder_id, chroma_store)
+
         indexed_chunks.extend(chunks_to_embed)
         document_results.append(result)
 
@@ -136,8 +207,10 @@ async def upload_document(
 
     return {
         "status": "uploaded",
+        "folder_id": normalized_folder_id,
         "files_received": len(normalized_files),
         "files_indexed": len([d for d in document_results if d["chunks_embedded"] > 0]),
+        "files_skipped_duplicates": len([d for d in document_results if d["status"] == "duplicate_skipped"]),
         "total_chunks_embedded": len(indexed_chunks),
         "documents": document_results,
     }

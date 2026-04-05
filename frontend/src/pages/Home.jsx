@@ -1,121 +1,287 @@
-import { useContext } from 'react'
-import { stats, features } from '../constants'
-import { AppContext } from '../context/AppContext'
+import { useContext, useEffect, useMemo, useState } from 'react'
 import PageTransition from '../components/PageTransition'
-import ScrollReveal, { ScrollRevealGroup } from '../components/ScrollReveal'
+import ScrollReveal from '../components/ScrollReveal'
+import { AppContext } from '../context/AppContext'
+import {
+  addWorkspaceFolder,
+  clearAllWorkspaceData,
+  deleteWorkspaceFolder,
+  getWorkspaceDashboardSnapshot,
+  normalizeFolderName,
+  setActiveWorkspaceFolder,
+} from '../lib/workspaceStore'
+
+function formatTime(timestamp) {
+  try {
+    return new Date(timestamp).toLocaleString()
+  } catch {
+    return 'Just now'
+  }
+}
+
+function StatCard({ label, value, hint }) {
+  return (
+    <div className="rounded-2xl border border-white/70 bg-white/80 p-5 shadow-sm">
+      <p className="text-xs uppercase tracking-wide text-slate-400">{label}</p>
+      <p className="mt-2 text-3xl font-semibold text-slate-900">{value}</p>
+      {hint ? <p className="mt-1 text-xs text-slate-500">{hint}</p> : null}
+    </div>
+  )
+}
 
 export default function Home() {
-  const { view, setView } = useContext(AppContext)
+  const { setView, currentUser } = useContext(AppContext)
+  const [snapshot, setSnapshot] = useState(getWorkspaceDashboardSnapshot())
+  const [newWorkspaceName, setNewWorkspaceName] = useState('')
+
+  const greeting = useMemo(() => {
+    const hour = new Date().getHours()
+    if (hour < 12) return 'Good morning!'
+    if (hour < 17) return 'Good afternoon!'
+    return 'Good evening!'
+  }, [])
+
+  const displayName = useMemo(
+    () => currentUser?.display_name || currentUser?.username || 'User',
+    [currentUser],
+  )
+
+  useEffect(() => {
+    const sync = () => setSnapshot(getWorkspaceDashboardSnapshot())
+    sync()
+    window.addEventListener('storage', sync)
+    window.addEventListener('workspace-data-changed', sync)
+    return () => {
+      window.removeEventListener('storage', sync)
+      window.removeEventListener('workspace-data-changed', sync)
+    }
+  }, [])
+
+  const stats = useMemo(() => {
+    const folders = snapshot.folders || []
+    const folderStatsEntries = Object.entries(snapshot.stats.folders || {})
+    const documentsCount = folderStatsEntries.reduce((sum, [, value]) => sum + Number(value?.docsCount || 0), 0)
+    const embeddingsCount = folderStatsEntries.reduce((sum, [, value]) => sum + Number(value?.embeddingsCount || 0), 0)
+    const queriesCount = folderStatsEntries.reduce((sum, [, value]) => sum + Number(value?.queriesCount || 0), 0)
+
+    return [
+      { label: 'Projects', value: folders.length, hint: 'Uploaded folders or collections' },
+      { label: 'Documents', value: documentsCount, hint: 'Indexed documents' },
+      { label: 'Embeddings', value: embeddingsCount, hint: 'Vectors stored' },
+      { label: 'Queries', value: queriesCount, hint: 'Questions asked' },
+    ]
+  }, [snapshot])
+
+  const visibleRecentActivity = useMemo(
+    () => snapshot.recentActivity || [],
+    [snapshot.recentActivity],
+  )
+
+  const projectFolders = useMemo(
+    () => snapshot.folders || [],
+    [snapshot.folders],
+  )
+
+  const createWorkspace = () => {
+    const raw = newWorkspaceName.trim()
+    if (!raw) {
+      window.alert('Workspace name cannot be empty.')
+      return
+    }
+
+    const normalized = normalizeFolderName(raw)
+    if (!normalized) {
+      window.alert('Workspace name is invalid. Use letters, numbers, dashes, or underscores.')
+      return
+    }
+    if (projectFolders.includes(normalized)) {
+      window.alert(`Workspace '${normalized}' already exists.`)
+      return
+    }
+
+    addWorkspaceFolder(normalized)
+    setActiveWorkspaceFolder(normalized)
+    setNewWorkspaceName('')
+    setSnapshot(getWorkspaceDashboardSnapshot())
+    setView('workspace')
+  }
+
+  const openWorkspace = (folderName) => {
+    setActiveWorkspaceFolder(folderName)
+    setSnapshot(getWorkspaceDashboardSnapshot())
+    setView('workspace')
+  }
+
+  const removeWorkspace = (event, folderName) => {
+    event.stopPropagation()
+
+    const ok = window.confirm(`Delete workspace '${folderName}'?`)
+    if (!ok) return
+
+    deleteWorkspaceFolder(folderName)
+    setSnapshot(getWorkspaceDashboardSnapshot())
+  }
+
+  const clearAllWorkspaces = () => {
+    const ok = window.confirm('Delete all workspaces and clear all local workspace data?')
+    if (!ok) return
+    setSnapshot(clearAllWorkspaceData())
+  }
+
   return (
     <PageTransition>
-      <section className="relative grid items-center gap-10 lg:grid-cols-[1.15fr_0.85fr]">
-        <div className="hero-grid rounded-[32px] p-10 lg:p-12">
-          <ScrollReveal className="inline-block pill bg-teal-50 text-teal-700" direction="left">
-            <span className="h-2 w-2 animate-pulse rounded-full bg-teal-500" />
-            Live indexing enabled
-          </ScrollReveal>
+      <section className="space-y-8">
+        <ScrollReveal className="hero-grid rounded-[32px] p-8 lg:p-10" direction="up">
+          <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+            <div className="max-w-3xl">
+              <h1 className="mt-5 font-display text-5xl font-semibold tracking-tight text-slate-900 sm:text-6xl lg:text-7xl">
+                {greeting}
+              </h1>
+              <p className="mt-4 max-w-4xl text-xl text-slate-600 sm:text-2xl">
+                Welcome Back {displayName}
+              </p>
+            </div>
 
-          <ScrollReveal direction="up" className="mt-6">
-            <h1 className="font-display text-4xl font-semibold tracking-tight text-slate-900 sm:text-5xl">
-              Turn complex documents into instant, confident answers.
-            </h1>
-          </ScrollReveal>
-
-          <ScrollReveal direction="up" delay={0.06} className="mt-4 max-w-xl">
-            <p className="text-base text-slate-600 sm:text-lg">
-              Corelign organizes your enterprise knowledge, preserves context, and delivers fast answers grounded in
-              your most trusted documents.
-            </p>
-          </ScrollReveal>
-
-          <div className="mt-8 flex flex-wrap items-center gap-4">
-            <ScrollReveal direction="up" delay={0.12}>
-              <button className="btn-primary" type="button" onClick={() => setView('workspace')}>Start indexing</button>
-            </ScrollReveal>
-            <ScrollReveal direction="up" delay={0.14}>
-              <button className="btn-ghost">See security brief</button>
-            </ScrollReveal>
+            <div className="flex flex-wrap gap-3">
+              <button className="btn-primary" type="button" onClick={() => setView('workspace')}>
+                Open Workspace
+              </button>
+            </div>
           </div>
-          <ScrollRevealGroup className="mt-10 grid gap-4 sm:grid-cols-3" stagger={0.06} direction="up">
-            {stats.map((stat) => (
-              <div key={stat.label} className="glass rounded-2xl px-5 py-4">
-                <p className="text-xs uppercase tracking-wide text-slate-400">{stat.label}</p>
-                <p className="mt-2 text-xl font-semibold text-slate-900">{stat.value}</p>
-              </div>
-            ))}
-          </ScrollRevealGroup>
+        </ScrollReveal>
+
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          {stats.map((stat) => (
+            <StatCard key={stat.label} {...stat} />
+          ))}
         </div>
 
-        <div className="relative">
-          <ScrollReveal className="glass animate-fadeUp rounded-[28px] p-6 shadow-glow" direction="right">
+        <div className="grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
+          <div className="rounded-3xl bg-white/75 p-6 shadow-sm backdrop-blur h-[640px] flex flex-col">
             <div>
-            <div className="flex items-center justify-between">
-              <p className="text-sm font-semibold text-slate-700">Document Upload</p>
-              <span className="rounded-full bg-slate-900 px-3 py-1 text-xs font-medium text-white">Secure</span>
-            </div>
-              <div className="mt-6 rounded-2xl border border-dashed border-teal-200 bg-teal-50/60 p-6 text-center">
-                <p className="text-sm font-medium text-slate-700">Drag & drop or browse</p>
-                <p className="text-xs text-slate-500">Supports PDF & DOCX</p>
-                <button className="btn-primary mt-5">Upload file</button>
+              <div>
+                <h2 className="font-display text-3xl font-semibold text-slate-900 lg:text-4xl">Projects</h2>
               </div>
+              <div className="mt-4 flex items-center gap-2">
+                <input
+                  value={newWorkspaceName}
+                  onChange={(event) => setNewWorkspaceName(event.target.value)}
+                  placeholder="New workspace name"
+                  className="w-48 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-teal-500"
+                />
+                <button type="button" className="btn-primary whitespace-nowrap" onClick={createWorkspace}>
+                  Create Workspace
+                </button>
+                <button type="button" className="btn-ghost whitespace-nowrap" onClick={clearAllWorkspaces}>
+                  Delete All Workspaces
+                </button>
+              </div>
+            </div>
 
-              <ScrollRevealGroup className="mt-6 space-y-4" stagger={0.04} direction="up">
-                {['Policy Handbook.pdf', 'Product Brief.docx', 'Compliance Guide.pdf'].map((doc) => (
-                  <div key={doc} className="flex items-center justify-between rounded-xl bg-white/80 px-4 py-3">
-                    <div>
-                      <p className="text-sm font-medium text-slate-800">{doc}</p>
-                      <p className="text-xs text-slate-400">Processing · 72%</p>
-                    </div>
-                    <div className="h-2 w-24 overflow-hidden rounded-full bg-slate-100">
-                      <div className="h-full w-3/4 bg-teal-500" />
-                    </div>
+            <div className="mt-6 min-h-0 flex-1 overflow-y-auto scrollbar-invisible pr-1">
+              <div className="grid gap-5 md:grid-cols-2">
+                {projectFolders.length === 0 ? (
+                  <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-5 text-sm text-slate-600 md:col-span-2">
+                    No workspace is there.
                   </div>
-                ))}
-              </ScrollRevealGroup>
-            </div>
-          </ScrollReveal>
-
-          <div className="absolute -right-10 -top-8 hidden h-32 w-32 animate-float rounded-[28px] bg-orange-200/70 blur-xl md:block" />
-          <div className="absolute -bottom-10 -left-6 hidden h-28 w-28 animate-float rounded-full bg-teal-200/80 blur-2xl md:block" />
-        </div>
-      </section>
-
-      <section id="capabilities" className="grid gap-8 lg:grid-cols-[0.9fr_1.1fr]">
-        <div className="glass rounded-3xl p-8">
-          <p className="pill bg-orange-50 text-orange-600">Built for teams</p>
-          <h2 className="mt-4 font-display text-3xl font-semibold text-slate-900">Everything your analysts need in one interface.</h2>
-          <p className="mt-4 text-slate-600">Configure data sources, define retrieval rules, and push new content live in minutes with audit-ready controls.</p>
-          <div className="mt-6 grid gap-4">
-            {features.map((feature) => (
-              <div key={feature.title} className="rounded-2xl border border-white/80 bg-white/70 p-5">
-                <p className="text-sm font-semibold text-slate-900">{feature.title}</p>
-                <p className="mt-2 text-sm text-slate-600">{feature.description}</p>
+                ) : null}
+                {projectFolders.map((folder) => {
+                  const folderStats = snapshot.stats.folders?.[folder] || { docsCount: 0, embeddingsCount: 0, queriesCount: 0 }
+                  const isActive = folder === snapshot.activeFolder
+                  return (
+                    <button
+                      key={folder}
+                      type="button"
+                      onClick={() => openWorkspace(folder)}
+                      className={`min-h-[180px] rounded-2xl border p-5 text-left transition ${isActive ? 'border-teal-400 bg-teal-50/80' : 'border-slate-200 bg-white/90 hover:border-teal-200 hover:bg-teal-50/40'}`}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-semibold text-slate-900">{folder}</p>
+                          <p className="mt-1 text-xs text-slate-500">{isActive ? 'Active workspace' : 'Project folder'}</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="rounded-full bg-slate-900 px-2.5 py-1 text-[11px] font-medium text-white">
+                            {folderStats.docsCount} docs
+                          </span>
+                          <button
+                            type="button"
+                            onClick={(event) => removeWorkspace(event, folder)}
+                            className="flex h-7 w-7 items-center justify-center rounded-full border border-slate-300 bg-white text-slate-500 transition hover:border-rose-300 hover:text-rose-600"
+                            aria-label={`Delete workspace ${folder}`}
+                            title="Delete workspace"
+                          >
+                            <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                              <path d="M3 6h18" />
+                              <path d="M8 6V4h8v2" />
+                              <path d="M19 6l-1 14H6L5 6" />
+                              <path d="M10 11v6" />
+                              <path d="M14 11v6" />
+                            </svg>
+                          </button>
+                        </div>
+                      </div>
+                      <div className="mt-4 grid grid-cols-3 gap-2 text-xs text-slate-600">
+                        <div className="rounded-xl bg-slate-50 px-3 py-2">
+                          <p className="text-slate-400">Docs</p>
+                          <p className="mt-1 font-semibold text-slate-900">{folderStats.docsCount}</p>
+                        </div>
+                        <div className="rounded-xl bg-slate-50 px-3 py-2">
+                          <p className="text-slate-400">Embeddings</p>
+                          <p className="mt-1 font-semibold text-slate-900">{folderStats.embeddingsCount}</p>
+                        </div>
+                        <div className="rounded-xl bg-slate-50 px-3 py-2">
+                          <p className="text-slate-400">Queries</p>
+                          <p className="mt-1 font-semibold text-slate-900">{folderStats.queriesCount}</p>
+                        </div>
+                      </div>
+                    </button>
+                  )
+                })}
               </div>
-            ))}
+            </div>
           </div>
-        </div>
 
-        <div className="grid gap-4">
-          <div className="glass rounded-3xl p-7">
-            <p className="text-xs uppercase tracking-wide text-slate-400">Realtime query</p>
-            <p className="mt-4 text-lg font-semibold text-slate-900">"Which contracts require 30-day notice?"</p>
-            <div className="mt-5 rounded-2xl bg-slate-900 p-5 text-sm text-slate-200">
-              <p className="font-medium text-white">Answer</p>
-              <p className="mt-2 text-slate-300">Contracts 4.2 and 5.1 include a 30-day written notice clause for termination.</p>
-              <div className="mt-4 flex flex-wrap gap-2 text-xs">
-                <span className="rounded-full bg-white/10 px-3 py-1">Policy Handbook · Section 5</span>
-                <span className="rounded-full bg-white/10 px-3 py-1">Contracts · Appendix B</span>
+          <div className="space-y-6">
+            <div className="rounded-3xl bg-slate-900 p-6 text-slate-100 shadow-sm">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <h2 className="font-display text-2xl font-semibold text-white">Recent activity</h2>
+                  <p className="mt-1 text-sm text-slate-300">Latest uploads and queries across your workspaces</p>
+                </div>
+              </div>
+              <div className="scrollbar-invisible mt-5 h-[456px] space-y-3 overflow-y-auto">
+                {visibleRecentActivity.length === 0 ? (
+                  <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-slate-300">
+                    No activity yet. Upload a document to start.
+                  </div>
+                ) : (
+                  visibleRecentActivity.map((item) => (
+                    <div key={item.id} className="h-36 rounded-2xl border border-white/10 bg-white/5 p-4">
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="text-sm font-medium text-white">{item.title}</p>
+                        <span className="rounded-full bg-white/10 px-2.5 py-1 text-[11px] uppercase tracking-wide text-slate-300">
+                          {item.type}
+                        </span>
+                      </div>
+                      <p className="mt-2 text-sm text-slate-300">{item.detail}</p>
+                      <div className="mt-3 flex items-center justify-between text-xs text-slate-400">
+                        <span>{item.folder}</span>
+                        <span>{formatTime(item.timestamp)}</span>
+                      </div>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
-          </div>
-          <div className="glass grid gap-4 rounded-3xl p-7 sm:grid-cols-2">
-            <div>
-              <p className="text-sm font-semibold text-slate-900">Priority queues</p>
-              <p className="mt-2 text-xs text-slate-500">Schedule high impact docs first.</p>
-            </div>
-            <div>
-              <p className="text-sm font-semibold text-slate-900">Access controls</p>
-              <p className="mt-2 text-xs text-slate-500">Role-based routing & approvals.</p>
+
+            <div className="rounded-3xl bg-white/75 p-6 shadow-sm backdrop-blur">
+              <h2 className="font-display text-2xl font-semibold text-slate-900">Quick actions</h2>
+              <div className="mt-5 grid gap-3">
+                <button type="button" className="btn-primary w-full" onClick={() => setView('workspace')}>
+                  Go to Workspace
+                </button>
+              </div>
             </div>
           </div>
         </div>

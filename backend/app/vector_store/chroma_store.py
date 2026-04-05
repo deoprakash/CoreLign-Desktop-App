@@ -1,5 +1,4 @@
 import chromadb
-from chromadb.config import Settings
 import os
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
@@ -8,12 +7,8 @@ CHROMA_PATH = os.path.join(BASE_DIR, "data", "chroma_db")
 
 class ChromaStore:
     def __init__(self, collection_name="documents"):
-        self.client = chromadb.Client(
-            Settings(
-                persist_directory=CHROMA_PATH,
-                anonymized_telemetry=False
-            )
-        )
+        # Use PersistentClient so chunk documents survive process restarts.
+        self.client = chromadb.PersistentClient(path=CHROMA_PATH)
 
         self.collection = self.client.get_or_create_collection(
             name=collection_name
@@ -28,7 +23,9 @@ class ChromaStore:
                 "document_id": c["document_id"],
                 "section": c["section"],
                 "section_level": c["section_level"],
-                "source_file": c["source_file"]
+                "source_file": c["source_file"],
+                "source_file_key": str(c["source_file"]).strip().lower(),
+                "folder_id": c.get("folder_id", "default"),
             })
             ids.append(c["chunk_id"])
 
@@ -37,6 +34,10 @@ class ChromaStore:
             metadatas=metadatas,
             ids=ids
         )
+
+        # Some Chroma versions still expose persist(); call if available.
+        if hasattr(self.client, "persist"):
+            self.client.persist()
 
     def get_chunks_by_ids(self, ids: list):
         return self.collection.get(ids=ids)

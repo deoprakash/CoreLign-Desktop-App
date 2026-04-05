@@ -1,4 +1,6 @@
 // Minimal API helper with timeout, abort, JSON normalization, and simple retry option
+import { getStoredSessionToken } from './auth'
+
 const DEFAULT_TIMEOUT = 30000
 
 function timeoutFetch(resource, options = {}) {
@@ -26,7 +28,18 @@ async function parseJsonSafe(res) {
 export async function apiFetch(path, opts = {}) {
   const base = (window?.API_BASE) || ''
   const url = path.startsWith('http') ? path : `${base}${path}`
-  const response = await timeoutFetch(url, opts)
+  const token = getStoredSessionToken()
+  const mergedHeaders = {
+    ...(opts.headers || {}),
+  }
+  if (token && !mergedHeaders.Authorization) {
+    mergedHeaders.Authorization = `Bearer ${token}`
+  }
+
+  const response = await timeoutFetch(url, {
+    ...opts,
+    headers: mergedHeaders,
+  })
   const data = await parseJsonSafe(response)
   if (!response.ok) {
     const err = {
@@ -42,7 +55,12 @@ export async function apiFetch(path, opts = {}) {
 }
 
 export async function postJson(path, body, opts = {}) {
-  return apiFetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), ...opts })
+  return apiFetch(path, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...(opts.headers || {}) },
+    body: JSON.stringify(body),
+    ...opts,
+  })
 }
 
 export default { apiFetch, postJson }

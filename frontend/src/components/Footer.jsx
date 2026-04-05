@@ -1,16 +1,18 @@
-import React, { useContext } from 'react'
+import { useContext } from 'react'
 import { AppContext } from '../context/AppContext'
 import logo from '../assets/corelignLogo.png'
 
+const APP_VERSION = 'v1.0.0'
+
 export default function Footer() {
-  const { setView } = useContext(AppContext)
+  const { setView, currentUser } = useContext(AppContext)
 
   return (
-    <footer className="border-t border-slate-100 bg-white/50">
-      <div className="mx-auto flex max-w-[1600px] flex-col gap-8 px-6 py-10 md:flex-row md:justify-between">
-        <div className="max-w-sm">
+    <footer className="mx-auto mt-8 w-full max-w-[1400px] px-6 pb-6 sm:px-10 lg:px-14">
+      <div className="rounded-2xl border border-white/70 bg-white/70 px-5 py-4 shadow-sm backdrop-blur sm:px-6 sm:py-5">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
-            <div className="h-10 w-10 flex items-center justify-center">
+            <div className="flex h-10 w-10 items-center justify-center">
               <img src={logo} alt="Corelign" className="object-contain" />
             </div>
             <div>
@@ -19,63 +21,20 @@ export default function Footer() {
             </div>
           </div>
 
-          <p className="mt-4 text-sm text-slate-600">
-            Turn your internal documents into searchable, auditable answers — with secure access
-            controls and end-to-end traceability.
-          </p>
-
-          <div className="mt-4 flex items-center gap-3 text-xs text-slate-500">
-            <a href="#" className="hover:text-slate-700">Contact</a>
-            <span>·</span>
-            <a href="#" className="hover:text-slate-700">Privacy</a>
-            <span>·</span>
-            <a href="#" className="hover:text-slate-700">Terms</a>
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-slate-600 sm:justify-end sm:text-sm">
+            {currentUser ? (
+              <>
+                <button type="button" className="transition hover:text-slate-900">Privacy</button>
+                <button type="button" className="transition hover:text-slate-900">Terms</button>
+              </>
+            ) : (
+              <>
+                <button type="button" className="transition hover:text-slate-900">Privacy</button>
+                <button type="button" className="transition hover:text-slate-900">Terms</button>
+              </>
+            )}
+            <span className="text-slate-400">{APP_VERSION}</span>
           </div>
-        </div>
-
-        <div className="grid grid-cols-2 gap-6 md:grid-cols-4">
-          <div>
-            <p className="text-xs font-semibold text-slate-500">Product</p>
-            <ul className="mt-3 space-y-2 text-sm text-slate-600">
-              <li><a href="#" className="hover:text-slate-900">Features</a></li>
-              <li><a href="#" className="hover:text-slate-900">Integrations</a></li>
-              <li><a href="#" className="hover:text-slate-900">API</a></li>
-            </ul>
-          </div>
-
-          <div>
-            <p className="text-xs font-semibold text-slate-500">Resources</p>
-            <ul className="mt-3 space-y-2 text-sm text-slate-600">
-              <li><a href="#" className="hover:text-slate-900">Docs</a></li>
-              <li><a href="#" className="hover:text-slate-900">Blog</a></li>
-              <li><a href="#" className="hover:text-slate-900">Security</a></li>
-            </ul>
-          </div>
-
-          <div>
-            <p className="text-xs font-semibold text-slate-500">Company</p>
-            <ul className="mt-3 space-y-2 text-sm text-slate-600">
-              <li><button type="button" onClick={() => setView('aboutUs')} className="hover:text-slate-900">About</button></li>
-              <li><button type="button" onClick={() => setView('workspace')} className="hover:text-slate-900">Workspace</button></li>
-              <li><button type="button" onClick={() => setView('contactUs')} className="hover:text-slate-900">Contact</button></li>
-            </ul>
-          </div>
-
-          <div>
-            <p className="text-xs font-semibold text-slate-500">Get in touch</p>
-            <p className="mt-3 text-sm text-slate-600">sales@corelign.example</p>
-            <div className="mt-4 flex gap-3">
-              <a href="#" aria-label="Twitter" className="h-8 w-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-600 hover:bg-slate-200">T</a>
-              <a href="#" aria-label="LinkedIn" className="h-8 w-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-600 hover:bg-slate-200">in</a>
-              <a href="#" aria-label="Github" className="h-8 w-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-600 hover:bg-slate-200">G</a>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="border-t border-slate-100 px-6 py-4">
-        <div className="mx-auto max-w-[1600px] text-center text-xs text-slate-500">
-          © {new Date().getFullYear()} Corelign. All rights reserved.
         </div>
       </div>
     </footer>

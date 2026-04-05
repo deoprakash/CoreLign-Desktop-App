@@ -1,14 +1,21 @@
 import re
+import time
+from datetime import datetime, timezone
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
+from app.db import get_model_usage_events_collection, get_user_model_usage_collection
 from app.embeddings.embedder import Embedder
-from app.vector_store.index_instance import faiss_index
-from app.vector_store import chroma_store
+from app.vector_store.workspace_store import (
+    get_workspace_chroma_store,
+    get_workspace_faiss_index,
+    normalize_folder_id,
+)
+from app.retrieval.search import hybrid_retrieve
 from app.llm.groq_llm import GroqLLM
+from app.session import get_active_session
 from app.utils.metrics import metrics
-import time
 
 router = APIRouter()
 embedder = Embedder()
@@ -26,38 +33,49 @@ def _chunk_sort_key(chunk_id: str):
 class QueryRequest(BaseModel):
     query: str
     top_k: int = 7
+    folder_id: str = "default"
+    generation: dict | None = None
 
 
 @router.post("/query")
-async def query_documents(request: QueryRequest):
+async def query_documents(request: QueryRequest, session_doc=Depends(get_active_session)):
     query = request.query
     if not query:
         return {"error": "Query text is required."}
 
     top_k = request.top_k
+    folder_id = normalize_folder_id(request.folder_id)
+    faiss_index = get_workspace_faiss_index(folder_id)
+    chroma_store = get_workspace_chroma_store(folder_id)
 
     if not faiss_index.has_vectors:
         faiss_index.load_from_disk()
 
-    if not faiss_index.has_vectors:
-        return {"error": "Vector index not initialised! Upload a document first."}
+    total_chunks = chroma_store.collection.count()
+    if total_chunks == 0:
+        return {"error": f"No indexed chunks found for folder '{folder_id}'. Upload documents first."}
 
     print(f"DEBUG: FAISS index has {faiss_index.index.ntotal} vectors, {len(faiss_index.chunk_ids)} chunk_ids")
-    print(f"DEBUG: Chroma has {chroma_store.collection.count()} chunks")
+    print(f"DEBUG: Chroma has {total_chunks} chunks")
     print(f"DEBUG: First 5 chunk_ids in FAISS: {faiss_index.chunk_ids[:5]}")
 
     # Start overall timer
     t_start = time.perf_counter()
 
-    # 1️⃣ Embed query
-    query_embedding = embedder.embed_texts([query])
-
-    # 2️⃣ FAISS similarity search (returns chunk_ids + cosine similarities)
+    # 1️⃣ Hybrid retrieval (FAISS dense + BM25 sparse)
     t_retr_start = time.perf_counter()
-    chunk_ids, similarities = faiss_index.search_with_scores(query_embedding, top_k)
-    print(f"DEBUG: FAISS returned {len(chunk_ids)} chunk_ids: {chunk_ids}")
+    rows = hybrid_retrieve(
+        query=query,
+        faiss_index=faiss_index,
+        chroma_store=chroma_store,
+        embedder=embedder,
+        top_k=top_k,
+        dense_k=max(20, top_k * 3),
+        sparse_k=max(20, top_k * 3),
+    )
+    print(f"DEBUG: Hybrid retrieval returned {len(rows)} chunks")
 
-    if not chunk_ids:
+    if not rows:
         return {
             "query": query,
             "answer": "I don't have enough information in the provided context to answer that.",
@@ -67,74 +85,34 @@ async def query_documents(request: QueryRequest):
             "semantic_similarity": 0.0,
         }
 
-    # 3️⃣ Fetch documents from Chroma
-    chroma_results = chroma_store.collection.get(
-        ids=chunk_ids,
-        include=["documents", "metadatas"],
-    )
-
     t_retr_end = time.perf_counter()
     retrieval_time = t_retr_end - t_retr_start
-    # retrieval_time covers FAISS search + Chroma fetch
-
-    print(f"DEBUG: Chroma returned keys: {list(chroma_results.keys())}")
-
-    ids = chroma_results.get("ids", [])
-    documents = chroma_results.get("documents", [])
-    # Chroma may return 'metadatas' (plural) depending on version; fallback to 'metadata' if present
-    metadatas = chroma_results.get("metadatas", chroma_results.get("metadata", []))
-
-    # Build Context
-    # documents = [doc for doc in documents if doc and doc.strip()]
-    # context = "\n\n".join(documents)
-
-    rows = []
-    for idx, doc in enumerate(documents):
-        if not doc or not doc.strip():
-            continue
-
-        row_id = ids[idx] if idx < len(ids) else ""
-        row_meta = metadatas[idx] if idx < len(metadatas) else {}
-        rows.append((row_id, doc.strip(), row_meta))
-
-    rows.sort(key=lambda r: _chunk_sort_key(r[0]))
 
     context = "The following information is extracted from a document:\n\n"
 
-    for i, (_, doc, meta) in enumerate(rows):
+    for i, row in enumerate(rows):
+        doc = row.get("text", "")
+        meta = row.get("meta", {})
         section_label = meta.get("section", f"Section {i+1}") if isinstance(meta, dict) else f"Section {i+1}"
         context += f"{section_label}:\n{doc}\n\n"
 
-    if not context.strip():
-        return {
-            "query": query,
-            "answer": "I don't have enough information in the provided context to answer that.",
-            "sources": metadatas,
-            "chunks": [],
-            "confidence": 0.0,
-            "semantic_similarity": 0.0,
-        }
-
-    # Similarity values from FAISS are cosine similarities because the index is
-    # normalized with inner product search.
+    # Confidence and semantic similarity are derived from available dense scores.
+    dense_scores = [row.get("dense_score") for row in rows if row.get("dense_score") is not None]
     confidence = 0.0
     semantic_similarity = 0.0
-    if similarities:
-        avg_similarity = sum(similarities) / len(similarities)
-        top_similarity = max(similarities)
+    if dense_scores:
+        avg_similarity = sum(dense_scores) / len(dense_scores)
+        top_similarity = max(dense_scores)
         confidence = round(max(0.0, min(1.0, avg_similarity)), 3)
         semantic_similarity = round(max(0.0, min(1.0, top_similarity)), 3)
 
-    score_by_chunk_id = {
-        chunk_id: round(max(0.0, min(1.0, score)), 3)
-        for chunk_id, score in zip(chunk_ids, similarities)
-    }
-
     # Ask Groq
+    resolved_generation = llm.resolve_generation_config(question=query, generation=request.generation)
     t_gen_start = time.perf_counter()
     answer = llm.generate_answer(
         context=context,
-        question=query
+        question=query,
+        generation=request.generation,
     )
     t_gen_end = time.perf_counter()
     generation_time = t_gen_end - t_gen_start
@@ -153,26 +131,75 @@ async def query_documents(request: QueryRequest):
         )
     except Exception as e:
         print(f"DEBUG: Failed to write metrics: {e}")
+
+    # Persist model usage analytics (global + per-user aggregates).
+    try:
+        now = datetime.now(timezone.utc)
+        user_id = session_doc.get('user_id')
+        session_id = session_doc.get('session_id')
+        model_name = resolved_generation.get('model')
+
+        events = get_model_usage_events_collection()
+        events.insert_one(
+            {
+                'timestamp': now,
+                'user_id': user_id,
+                'session_id': session_id,
+                'model': model_name,
+                'mode': resolved_generation.get('mode'),
+                'temperature': resolved_generation.get('temperature'),
+                'max_tokens': resolved_generation.get('max_tokens'),
+                'query': query,
+                'folder_id': folder_id,
+                'retrieval_top_k': top_k,
+            }
+        )
+
+        user_model_usage = get_user_model_usage_collection()
+        user_model_usage.update_one(
+            {'user_id': user_id, 'model': model_name},
+            {
+                '$inc': {'query_count': 1},
+                '$set': {'updated_at': now},
+                '$setOnInsert': {'created_at': now},
+            },
+            upsert=True,
+        )
+    except Exception as e:
+        print(f"DEBUG: Failed to store model usage analytics: {e}")
     # Include the retrieved chunk texts and metadata in the response so the
     # frontend can surface the original chunks for each answer.
-    chunks = [{
-        "id": row_id,
-        "text": doc,
-        "meta": meta,
-        "score": score_by_chunk_id.get(row_id, None),
-    } for (row_id, doc, meta) in rows]
+    chunks = [
+        {
+            "id": row.get("id"),
+            "text": row.get("text"),
+            "meta": row.get("meta", {}),
+            "score": row.get("hybrid_score"),
+            "dense_score": row.get("dense_score"),
+            "sparse_score": row.get("sparse_score"),
+        }
+        for row in rows
+    ]
 
-    sources = [{
-        "id": row_id,
-        "metadata": meta,
-        "score": score_by_chunk_id.get(row_id, None),
-    } for (row_id, _, meta) in rows]
+    sources = [
+        {
+            "id": row.get("id"),
+            "metadata": row.get("meta", {}),
+            "score": row.get("hybrid_score"),
+            "dense_score": row.get("dense_score"),
+            "sparse_score": row.get("sparse_score"),
+        }
+        for row in rows
+    ]
 
     return {
         "query": query,
+        "folder_id": folder_id,
         "answer": answer,
         "sources": sources,
         "chunks": chunks,
         "confidence": confidence,
         "semantic_similarity": semantic_similarity,
+        "model_used": resolved_generation.get('model'),
+        "generation_mode": resolved_generation.get('mode'),
     }

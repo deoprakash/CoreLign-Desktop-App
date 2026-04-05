@@ -2,44 +2,73 @@ import { useEffect, useRef, useState } from 'react'
 import useApiBase from '../hooks/useApiBase'
 import { useNotification } from '../context/NotificationContext'
 import { postJson } from '../lib/api'
-
-const STORAGE_KEY = 'chat_history_v1'
+import { addWorkspaceFolder, ensureChatFolderForActivity, recordWorkspaceActivity, updateWorkspaceStats } from '../lib/workspaceStore'
+import { getModelPreferences } from '../lib/modelPreferences'
 
 function makeId() {
   return `${Date.now()}-${Math.floor(Math.random() * 10000)}`
 }
 
-export default function QueryPanel() {
+export default function QueryPanel({ activeFolder = '' }) {
   const apiBase = useApiBase()
   const [inputText, setInputText] = useState('')
   const [messages, setMessages] = useState([])
   const [status, setStatus] = useState('idle')
+  const [currentGeneration, setCurrentGeneration] = useState(getModelPreferences())
   const listRef = useRef(null)
   const { push } = useNotification()
+  const storageKey = `chat_history_${activeFolder}`
 
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY)
-      if (raw) setMessages(JSON.parse(raw))
-    } catch (e) {
-      console.warn('Failed to load chat history', e)
+    const syncModelPrefs = () => {
+      setCurrentGeneration(getModelPreferences())
+    }
+
+    syncModelPrefs()
+    window.addEventListener('model-preferences-changed', syncModelPrefs)
+    window.addEventListener('storage', syncModelPrefs)
+
+    return () => {
+      window.removeEventListener('model-preferences-changed', syncModelPrefs)
+      window.removeEventListener('storage', syncModelPrefs)
     }
   }, [])
 
   useEffect(() => {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(messages))
+      const raw = localStorage.getItem(storageKey)
+      if (raw) setMessages(JSON.parse(raw))
+      else setMessages([])
+    } catch (e) {
+      console.warn('Failed to load chat history', e)
+      setMessages([])
+    }
+  }, [storageKey])
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(storageKey, JSON.stringify(messages))
     } catch (e) {
       console.warn('Failed to save chat history', e)
     }
     // scroll to bottom on new message
     if (listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight
-  }, [messages])
+  }, [messages, storageKey])
 
   const handleSend = async (e) => {
     e?.preventDefault()
     const text = inputText.trim()
     if (!text) return
+    if (!activeFolder) {
+      push({ type: 'warn', title: 'Workspace required', message: 'Set a workspace name first.' })
+      return
+    }
+
+    const effectiveFolder = ensureChatFolderForActivity(activeFolder)
+    if (!effectiveFolder) {
+      push({ type: 'warn', title: 'Workspace required', message: 'Set a valid workspace name first.' })
+      return
+    }
 
     const userMsg = { id: makeId(), role: 'user', text, createdAt: Date.now() }
     setMessages((m) => [...m, userMsg])
@@ -47,7 +76,14 @@ export default function QueryPanel() {
 
     setStatus('loading')
     try {
-      const data = await postJson(`${apiBase}/query`, { query: text, top_k: 7 })
+      const generation = getModelPreferences()
+      setCurrentGeneration(generation)
+      const data = await postJson(`${apiBase}/query`, {
+        query: text,
+        top_k: 7,
+        folder_id: effectiveFolder,
+        generation,
+      })
 
       const assistantMsg = {
         id: makeId(),
@@ -56,10 +92,20 @@ export default function QueryPanel() {
         chunks: Array.isArray(data.chunks) ? data.chunks : [],
         sources: Array.isArray(data.sources) ? data.sources : [],
         confidence: typeof data.confidence === 'number' ? data.confidence : null,
+        model: data.model_used || generation.model,
+        modelMode: data.generation_mode || generation.mode,
         createdAt: Date.now(),
       }
 
       setMessages((m) => [...m, assistantMsg])
+      addWorkspaceFolder(effectiveFolder)
+      updateWorkspaceStats(effectiveFolder, { queriesCount: 1 })
+      recordWorkspaceActivity({
+        type: 'query',
+        folder: effectiveFolder,
+        title: `Answered query in ${effectiveFolder}`,
+        detail: text.slice(0, 120),
+      })
       if (!data.answer || data.answer === '') {
         push({ type: 'warn', title: 'No answer', message: 'No answer returned for this query.' })
       }
@@ -74,7 +120,7 @@ export default function QueryPanel() {
 
   const clearHistory = () => {
     setMessages([])
-    localStorage.removeItem(STORAGE_KEY)
+    localStorage.removeItem(storageKey)
   }
 
   const renderChunks = (chunks = []) => {
@@ -95,11 +141,16 @@ export default function QueryPanel() {
   }
 
   return (
-    <div className="glass flex min-h-[72vh] flex-col rounded-3xl p-6 lg:min-h-[78vh] xl:p-8">
+    <div className="glass flex h-[110vh] flex-col rounded-3xl p-6 lg:h-[110vh] xl:p-8">
       <div className="flex items-center justify-between">
         <div>
           <h2 className="font-display text-2xl font-semibold text-slate-900 lg:text-[2rem]">Conversation</h2>
           <p className="mt-1 text-sm text-slate-600">Persistent chat with retrieved chunks and history.</p>
+          <p className="mt-1 text-xs text-slate-500">Active folder: {activeFolder}</p>
+          <p className="mt-1 text-xs text-slate-500">
+            Current model: <span className="font-medium text-slate-700">{currentGeneration.model}</span>
+            {' '}({currentGeneration.mode === 'manual' ? 'manual' : 'auto'})
+          </p>
         </div>
         <div>
           <button className="btn-ghost" onClick={clearHistory}>Clear</button>
@@ -121,6 +172,8 @@ export default function QueryPanel() {
             {msg.role === 'assistant' ? (
               <div className="mt-3 text-xs text-slate-400">
                 {msg.confidence !== undefined && msg.confidence !== null ? `Confidence: ${msg.confidence.toFixed(3)}` : null}
+                {msg.model ? ` • Model: ${msg.model}` : null}
+                {msg.modelMode ? ` (${msg.modelMode})` : null}
               </div>
             ) : null}
 

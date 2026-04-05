@@ -1,25 +1,30 @@
-﻿# Corelign Frontend
+# Corelign Desktop App
 
-React + Vite user interface for the Corelign document ingestion and retrieval workflow.
+This folder is now the single app root for Corelign Desktop.
+It contains:
+- React + Vite renderer
+- Electron main/preload process
+- Electron Builder packaging config
 
-## Implemented UI
-- `frontend/src/pages/Home.jsx` provides the landing view and feature overview.
-- `frontend/src/pages/Workspace.jsx` combines the upload and query panels.
-- `frontend/src/components/UploadPanel.jsx` handles file selection, upload submission, and job polling.
-- `frontend/src/components/QueryPanel.jsx` handles chat-style question submission and response rendering.
-- `frontend/src/components/ToastContainer.jsx` and `frontend/src/context/NotificationContext.jsx` provide notifications.
+## Run
 
-## Supporting Frontend Areas
-- `frontend/src/context/AppContext.jsx` controls the active view.
-- `frontend/src/lib/api.js` provides fetch helpers.
-- `frontend/src/hooks/useApiBase.js` resolves the backend base URL.
-- `frontend/src/pages/Insights.jsx` shows metrics-style charts and summary visuals.
-- `frontend/src/pages/AboutUs.jsx` and `frontend/src/pages/ContactUs.jsx` provide static content pages.
+Install dependencies:
+- npm install
 
-## Current Integration
-- The upload panel posts files to `POST /upload/upload`.
-- The query panel posts questions to `POST /query`.
-- Local chat history is persisted in `localStorage`.
+Development desktop run (no backend auto-start):
+- npm run dev
 
-## Notes
-- This README only describes the implemented frontend code in the repository.
+Desktop run with backend auto-start:
+- npm run start
+
+## Build installer
+
+- npm run dist
+
+Output is generated in:
+- frontend/dist-electron
+
+## Backend requirements
+
+The desktop app starts FastAPI from ../backend when running start/dist (unless CORELIGN_SKIP_BACKEND=1).
+Install backend dependencies separately in your Python environment.

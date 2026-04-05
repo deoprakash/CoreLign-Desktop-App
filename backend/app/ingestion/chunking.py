@@ -1,26 +1,67 @@
+import re
+
+
 def _split_text_with_overlap(text, chunk_size, chunk_overlap):
     if chunk_size <= 0:
         raise ValueError("chunk_size must be > 0")
     if chunk_overlap < 0:
         raise ValueError("chunk_overlap must be >= 0")
 
-    # Prevent infinite loops when overlap is too large.
-    safe_overlap = min(chunk_overlap, chunk_size - 1) if chunk_size > 1 else 0
+    clean = " ".join(text.split())
+    if not clean:
+        return []
 
+    # Build chunks from whole words and approximate overlap by character budget.
+    words = re.findall(r"\S+", clean)
     parts = []
-    start = 0
-    text_len = len(text)
+    i = 0
 
-    while start < text_len:
-        end = min(start + chunk_size, text_len)
-        piece = text[start:end].strip()
-        if piece:
-            parts.append(piece)
+    while i < len(words):
+        current_words = []
+        current_len = 0
+        j = i
 
-        if end >= text_len:
+        while j < len(words):
+            word = words[j]
+            add_len = len(word) if not current_words else len(word) + 1
+            if current_words and (current_len + add_len) > chunk_size:
+                break
+
+            # Keep oversized words intact instead of splitting mid-word.
+            if not current_words and len(word) > chunk_size:
+                current_words.append(word)
+                current_len = len(word)
+                j += 1
+                break
+
+            current_words.append(word)
+            current_len += add_len
+            j += 1
+
+        if not current_words:
             break
 
-        start = end - safe_overlap
+        parts.append(" ".join(current_words))
+        if j >= len(words):
+            break
+
+        overlap_chars = min(chunk_overlap, chunk_size - 1) if chunk_size > 1 else 0
+        if overlap_chars <= 0:
+            i = j
+            continue
+
+        back_chars = 0
+        overlap_words = 0
+        k = len(current_words) - 1
+        while k >= 0:
+            wlen = len(current_words[k]) if overlap_words == 0 else len(current_words[k]) + 1
+            if back_chars + wlen > overlap_chars:
+                break
+            back_chars += wlen
+            overlap_words += 1
+            k -= 1
+
+        i = max(i + 1, j - max(1, overlap_words))
 
     return parts
 

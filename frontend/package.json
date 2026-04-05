@@ -1,13 +1,19 @@
 {
-  "name": "frontend",
+  "name": "corelign-desktop",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
+  "description": "Corelign unified desktop app",
+  "main": "main.cjs",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "set CORELIGN_SKIP_BACKEND=1&& npm run build && electron .",
+    "start": "npm run build && electron .",
+    "gen:icon": "node scripts/generate-icon.mjs",
     "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "pack": "npm run build && electron-builder --dir",
+    "dist": "npm run gen:icon && npm run build && electron-builder"
   },
   "dependencies": {
     "chart.js": "^4.4.0",
@@ -21,12 +27,52 @@
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.1.1",
     "autoprefixer": "^10.4.21",
+    "electron": "^33.2.0",
+    "electron-builder": "^25.1.8",
     "eslint": "^9.39.1",
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.4.24",
     "globals": "^16.5.0",
+    "png-to-ico": "^3.0.1",
     "postcss": "^8.5.6",
     "tailwindcss": "^3.4.17",
     "vite": "^7.3.1"
+  },
+  "build": {
+    "appId": "com.corelign.desktop",
+    "productName": "Corelign Desktop",
+    "files": [
+      "main.cjs",
+      "preload.cjs"
+    ],
+    "extraResources": [
+      {
+        "from": "../backend",
+        "to": "backend",
+        "filter": [
+          "**/*",
+          "!**/__pycache__/**",
+          "!**/*.pyc"
+        ]
+      },
+      {
+        "from": "dist",
+        "to": "frontend-dist"
+      }
+    ],
+    "directories": {
+      "output": "dist-electron"
+    },
+    "win": {
+      "icon": "build/icon.ico",
+      "target": [
+        "nsis"
+      ]
+    },
+    "nsis": {
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico",
+      "installerHeaderIcon": "build/icon.ico"
+    }
   }
 }
