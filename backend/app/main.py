@@ -37,7 +37,10 @@ app.include_router(auth.router, prefix="/auth", tags=["Auth"])
 @app.on_event("startup")
 def warm_hf_embedding_model():
     # Preload the embedding client during startup so the first launch exercises the Hugging Face API path.
-    get_embedder().embed_texts(["startup warmup"])
+    try:
+        get_embedder().embed_texts(["startup warmup"])
+    except Exception as exc:
+        print(f"DEBUG: Hugging Face embedding warmup skipped: {exc}")
 
 @app.get("/")
 def health_check():
