@@ -2,6 +2,15 @@
 import { getStoredSessionToken } from './auth'
 
 const DEFAULT_TIMEOUT = 30000
+const RAILWAY_API_BASE = 'https://corelign-desktop-app-production.up.railway.app'
+// const LOCAL_API_BASE = 'http://127.0.0.1:8000'
+
+function resolveApiBase() {
+  const configured = window?.API_BASE || import.meta.env.VITE_API_BASE
+  if (configured) return configured
+
+  return RAILWAY_API_BASE
+}
 
 function timeoutFetch(resource, options = {}) {
   const { timeout = DEFAULT_TIMEOUT } = options
@@ -26,7 +35,7 @@ async function parseJsonSafe(res) {
 }
 
 export async function apiFetch(path, opts = {}) {
-  const base = (window?.API_BASE) || ''
+  const base = resolveApiBase()
   const url = path.startsWith('http') ? path : `${base}${path}`
   const token = getStoredSessionToken()
   const mergedHeaders = {
@@ -40,6 +49,7 @@ export async function apiFetch(path, opts = {}) {
     ...opts,
     headers: mergedHeaders,
   })
+
   const data = await parseJsonSafe(response)
   if (!response.ok) {
     const err = {

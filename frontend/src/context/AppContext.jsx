@@ -7,6 +7,8 @@ export const AppContext = createContext({})
 
 const VIEW_STORAGE_KEY = 'app_view'
 const AUTH_VIEW_STORAGE_KEY = 'auth_view'
+const RAILWAY_API_BASE = 'https://corelign-desktop-app-production.up.railway.app'
+// const LOCAL_API_BASE = 'http://127.0.0.1:8000'
 
 export function AppProvider({ children }) {
   const resolveApiBase = () => {
@@ -15,7 +17,7 @@ export function AppProvider({ children }) {
       if (desktopBase) return desktopBase
       if (window?.API_BASE) return window.API_BASE
     }
-    return import.meta.env.VITE_API_BASE || 'http://127.0.0.1:8000'
+    return import.meta.env.VITE_API_BASE || RAILWAY_API_BASE
   }
 
   const getInitialUser = () => {

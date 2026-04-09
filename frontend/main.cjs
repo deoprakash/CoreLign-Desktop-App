@@ -4,9 +4,10 @@ const { spawn } = require('child_process')
 const http = require('http')
 const os = require('os')
 
-const API_HOST = '127.0.0.1'
-const API_PORT = 8000
-const API_BASE = `http://${API_HOST}:${API_PORT}`
+// const API_HOST = '127.0.0.1'
+// const API_PORT = 8000
+// const API_BASE = `http://${API_HOST}:${API_PORT}`
+const API_BASE = 'https://corelign-desktop-app-production.up.railway.app'
 const BACKEND_HEALTH_PATH = '/'
 const SKIP_BACKEND = process.env.CORELIGN_SKIP_BACKEND === '1'
 
@@ -104,12 +105,16 @@ function waitForBackend(timeoutMs = 30000) {
 }
 
 function startBackend() {
+  // Local backend startup is disabled when using Railway-hosted API.
+  return
+
+  /*
   const pythonCmd = resolvePythonCommand()
   const backendDir = getBackendDir()
 
   backendProcess = spawn(
     pythonCmd,
-    ['-m', 'uvicorn', 'app.main:app', '--host', API_HOST, '--port', String(API_PORT)],
+    ['-m', 'uvicorn', 'app.main:app', '--host', '127.0.0.1', '--port', '8000'],
     {
       cwd: backendDir,
       windowsHide: true,
@@ -132,6 +137,7 @@ function startBackend() {
   backendProcess.on('exit', (code) => {
     console.error(`[backend] exited with code ${code}`)
   })
+  */
 }
 
 function stopBackend() {
@@ -170,8 +176,12 @@ app.whenReady().then(async () => {
   })
 
   if (!SKIP_BACKEND) {
-    startBackend()
-    await waitForBackend()
+    try {
+      startBackend()
+      await waitForBackend()
+    } catch (error) {
+      console.error('[backend] startup failed, launching UI without local backend:', error)
+    }
   }
   await createMainWindow()
 
