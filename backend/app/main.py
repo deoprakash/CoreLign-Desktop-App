@@ -1,6 +1,8 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.api import auth, upload, query
+# from app.embeddings.embedder import Embedder
+from app.embeddings.embedder import get_embedder
 import os
 
 app = FastAPI(
@@ -30,6 +32,12 @@ app.add_middleware(
 app.include_router(upload.router, prefix="/upload", tags=["Upload"])
 app.include_router(query.router, tags=["Query"])
 app.include_router(auth.router, prefix="/auth", tags=["Auth"])
+
+
+@app.on_event("startup")
+def warm_hf_embedding_model():
+    # Preload the embedding client during startup so the first launch exercises the Hugging Face API path.
+    get_embedder().embed_texts(["startup warmup"])
 
 @app.get("/")
 def health_check():

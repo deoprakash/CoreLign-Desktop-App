@@ -18,7 +18,10 @@ class ChromaStore:
         documents, metadatas, ids = [], [], []
 
         for c in chunks:
-            documents.append("\n".join(c["content"]))
+            section_text = str(c.get("section", "")).strip()
+            body_text = "\n".join(c.get("content", []))
+            document_text = f"{section_text}\n{body_text}".strip()
+            documents.append(document_text)
             metadatas.append({
                 "document_id": c["document_id"],
                 "section": c["section"],

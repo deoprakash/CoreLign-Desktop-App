@@ -6,7 +6,8 @@ from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
 from app.db import get_model_usage_events_collection, get_user_model_usage_collection
-from app.embeddings.embedder import Embedder
+# from app.embeddings.embedder import Embedder
+from app.embeddings.embedder import get_embedder
 from app.vector_store.workspace_store import (
     get_workspace_chroma_store,
     get_workspace_faiss_index,
@@ -18,7 +19,6 @@ from app.session import get_active_session
 from app.utils.metrics import metrics
 
 router = APIRouter()
-embedder = Embedder()
 llm = GroqLLM()
 
 
@@ -44,6 +44,7 @@ async def query_documents(request: QueryRequest, session_doc=Depends(get_active_
         return {"error": "Query text is required."}
 
     top_k = request.top_k
+    embedder = get_embedder()
     folder_id = normalize_folder_id(request.folder_id)
     faiss_index = get_workspace_faiss_index(folder_id)
     chroma_store = get_workspace_chroma_store(folder_id)

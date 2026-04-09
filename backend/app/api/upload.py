@@ -15,7 +15,8 @@ from app.ingestion.chunking import (
     merge_empty_parent_chunks,
 )
 
-from app.embeddings.embedder import Embedder
+# from app.embeddings.embedder import Embedder
+from app.embeddings.embedder import get_embedder
 from app.vector_store.workspace_store import (
     get_workspace_chroma_store,
     get_workspace_faiss_index,
@@ -24,7 +25,6 @@ from app.vector_store.workspace_store import (
 
 
 router = APIRouter()
-embedder = Embedder()
 
 UPLOAD_DIR = "data/raw_docs"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
@@ -171,6 +171,7 @@ async def upload_document(
     document_results = []
     faiss_index = get_workspace_faiss_index(normalized_folder_id)
     chroma_store = get_workspace_chroma_store(normalized_folder_id)
+    embedder = get_embedder()
     seen_names = set()
 
     for uploaded_file in normalized_files:
@@ -193,7 +194,7 @@ async def upload_document(
         document_results.append(result)
 
     if indexed_chunks:
-        texts = [" ".join(c["content"]) for c in indexed_chunks]
+        texts = [f"{c.get('section', '')}\n{' '.join(c['content'])}".strip() for c in indexed_chunks]
         embeddings = embedder.embed_texts(texts)
 
         faiss_index.add_vectors(

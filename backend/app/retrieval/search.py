@@ -103,6 +103,8 @@ def hybrid_retrieve(
 		text = docs[i] if i < len(docs) else ""
 		meta = metas[i] if i < len(metas) else {}
 		if not text or not str(text).strip():
+			text = meta.get("section", "") if isinstance(meta, dict) else ""
+		if not text or not str(text).strip():
 			continue
 
 		rows.append(
