@@ -16,6 +16,7 @@ export default function QueryPanel({ activeFolder = '' }) {
   const [status, setStatus] = useState('idle')
   const [currentGeneration, setCurrentGeneration] = useState(getModelPreferences())
   const listRef = useRef(null)
+  const inputRef = useRef(null)
   const { push } = useNotification()
   const storageKey = `chat_history_${activeFolder}`
 
@@ -54,6 +55,12 @@ export default function QueryPanel({ activeFolder = '' }) {
     // scroll to bottom on new message
     if (listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight
   }, [messages, storageKey])
+
+  useEffect(() => {
+    if (inputRef.current && activeFolder) {
+      inputRef.current.focus()
+    }
+  }, [activeFolder])
 
   const handleSend = async (e) => {
     e?.preventDefault()
@@ -115,12 +122,14 @@ export default function QueryPanel({ activeFolder = '' }) {
       push({ type: 'error', title: 'Query failed', message: err.message })
     } finally {
       setStatus('idle')
+      window.requestAnimationFrame(() => inputRef.current?.focus())
     }
   }
 
   const clearHistory = () => {
     setMessages([])
     localStorage.removeItem(storageKey)
+    inputRef.current?.focus()
   }
 
   const renderChunks = (chunks = []) => {
@@ -199,10 +208,10 @@ export default function QueryPanel({ activeFolder = '' }) {
       </div>
 
       <form className="mt-4 border-t border-white/50 pt-4" onSubmit={handleSend}>
-        <textarea value={inputText} onChange={(e) => setInputText(e.target.value)} placeholder="Ask a question about your uploaded documents..." className="min-h-[80px] w-full rounded-2xl border border-slate-200 bg-white/80 px-4 py-3 text-sm text-slate-700 outline-none focus:border-teal-500" />
+        <textarea ref={inputRef} value={inputText} onChange={(e) => setInputText(e.target.value)} placeholder="Ask a question about your uploaded documents..." className="min-h-[80px] w-full rounded-2xl border border-slate-200 bg-white/80 px-4 py-3 text-sm text-slate-700 outline-none focus:border-teal-500" />
         <div className="mt-3 flex items-center gap-3">
           <button className="btn-primary" type="submit" disabled={status === 'loading'}>{status === 'loading' ? 'Thinking...' : 'Send'}</button>
-          <button className="btn-ghost" type="button" onClick={() => setInputText('')}>Clear input</button>
+          <button className="btn-ghost" type="button" onClick={() => { setInputText(''); inputRef.current?.focus() }}>Clear input</button>
         </div>
       </form>
     </div>

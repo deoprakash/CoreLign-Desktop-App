@@ -19,7 +19,8 @@
     "preview": "vite preview",
     "pack": "npm run build && electron-builder --dir",
     "dist": "npm run gen:icon && npm run build && electron-builder",
-    "dist:linux": "npm run gen:icon && npm run build && electron-builder --linux deb"
+    "dist:linux": "npm run gen:icon && npm run build && electron-builder --linux deb",
+    "dist:linux:docker": "docker run --rm -v \"%cd%:/project\" -w /project electronuserland/builder:latest /bin/bash -lc \"npm ci; npm run dist:linux\""
   },
   "dependencies": {
     "chart.js": "^4.4.0",

@@ -108,7 +108,6 @@ export default function Workspace() {
             <button
               type="button"
               className="btn-primary"
-              onMouseDown={(e) => e.preventDefault()}
               onClick={activateFolder}
             >
               Use Folder

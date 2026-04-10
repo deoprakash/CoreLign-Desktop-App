@@ -189,10 +189,17 @@ export default function Home() {
                   const folderStats = snapshot.stats.folders?.[folder] || { docsCount: 0, embeddingsCount: 0, queriesCount: 0 }
                   const isActive = folder === snapshot.activeFolder
                   return (
-                    <button
+                    <div
                       key={folder}
-                      type="button"
                       onClick={() => openWorkspace(folder)}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault()
+                          openWorkspace(folder)
+                        }
+                      }}
+                      role="button"
+                      tabIndex={0}
                       className={`min-h-[180px] rounded-2xl border p-5 text-left transition ${isActive ? 'border-teal-400 bg-teal-50/80' : 'border-slate-200 bg-white/90 hover:border-teal-200 hover:bg-teal-50/40'}`}
                     >
                       <div className="flex items-start justify-between gap-3">
@@ -235,7 +242,7 @@ export default function Home() {
                           <p className="mt-1 font-semibold text-slate-900">{folderStats.queriesCount}</p>
                         </div>
                       </div>
-                    </button>
+                    </div>
                   )
                 })}
               </div>
