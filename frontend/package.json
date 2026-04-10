@@ -3,6 +3,11 @@
   "private": true,
   "version": "1.0.0",
   "description": "Corelign unified desktop app",
+  "homepage": "https://corelign-desktop-app-production.up.railway.app",
+  "author": {
+    "name": "Corelign Team",
+    "email": "support@corelign.app"
+  },
   "main": "main.cjs",
   "type": "module",
   "scripts": {
@@ -13,7 +18,8 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "pack": "npm run build && electron-builder --dir",
-    "dist": "npm run gen:icon && npm run build && electron-builder"
+    "dist": "npm run gen:icon && npm run build && electron-builder",
+    "dist:linux": "npm run gen:icon && npm run build && electron-builder --linux deb"
   },
   "dependencies": {
     "chart.js": "^4.4.0",
@@ -47,15 +53,6 @@
     ],
     "extraResources": [
       {
-        "from": "../backend",
-        "to": "backend",
-        "filter": [
-          "**/*",
-          "!**/__pycache__/**",
-          "!**/*.pyc"
-        ]
-      },
-      {
         "from": "dist",
         "to": "frontend-dist"
       }
@@ -67,6 +64,14 @@
       "icon": "build/icon.ico",
       "target": [
         "nsis"
+      ]
+    },
+    "linux": {
+      "category": "Utility",
+      "icon": "build/icon.png",
+      "maintainer": "Corelign Team <support@corelign.app>",
+      "target": [
+        "deb"
       ]
     },
     "nsis": {
